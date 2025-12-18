@@ -1,0 +1,2 @@
+# calculating_of_meter_readings
+Ежемесячный дорасчет показаний счетчиков TowerStore
