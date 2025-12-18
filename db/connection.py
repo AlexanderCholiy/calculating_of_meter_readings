@@ -15,4 +15,4 @@ TSSessionLocal = sessionmaker(
     autocommit=False,
 )
 
-Base = declarative_base()
+TSBase = declarative_base()
