@@ -13,8 +13,11 @@ BASE_DIR = os.path.normpath(
         os.path.dirname(os.path.abspath(__file__)), '..'
     )
 )
-LOG_DIR = os.path.join(BASE_DIR, 'logs')
+
 DATA_DIR = os.path.join(BASE_DIR, 'data')
+os.makedirs(DATA_DIR, exist_ok=True)
+
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
 
 DEFAULT_LOG_MODE = 4 if DEBUG_MODE else 1
 DEFAULT_LOG_LEVEL = DEBUG_MODE if DEBUG else INFO

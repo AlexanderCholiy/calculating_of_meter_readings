@@ -1,8 +1,8 @@
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError, OperationalError
-from db.connection import ts_engine
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from core.logger import db_logger
+from db.connection import ts_engine
 
 
 def check_db_connection() -> bool:

@@ -1,9 +1,8 @@
 from core.logger import app_logger
 from core.wraps import timer
-
-from db.utils import check_db_connection
 from db.connection import TSSessionLocal
 from db.reports.poles_report import PoleReport
+from db.utils import check_db_connection
 
 
 @timer(app_logger)

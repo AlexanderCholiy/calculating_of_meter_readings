@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Text, Integer
+from sqlalchemy import Column, Integer, Text
+
 from .connection import TSBase
 
 

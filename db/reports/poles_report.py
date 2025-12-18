@@ -1,8 +1,9 @@
-from typing import TypedDict, Optional
+from typing import Optional, TypedDict
 
-from sqlalchemy.orm import Session, aliased
 from sqlalchemy import case, exists, func
-from db.models import Pole, Operator
+from sqlalchemy.orm import Session, aliased
+
+from db.models import Operator, Pole
 
 
 class PoleData(TypedDict):
