@@ -7,6 +7,7 @@ from .constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_MODE,
     DEFAULT_ROTATING_LOG_FILE,
+    CALC_ROTATING_LOG_FILE,
 )
 from .exceptions import LoggerError
 
@@ -104,3 +105,4 @@ class LoggerFactory:
 
 app_logger = LoggerFactory('app_logger').get_logger()
 db_logger = LoggerFactory('db_logger', DB_ROTATING_LOG_FILE).get_logger()
+calc_logger = LoggerFactory('calc_logger', CALC_ROTATING_LOG_FILE).get_logger()
