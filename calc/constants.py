@@ -1,9 +1,19 @@
 import os
+from typing import TypedDict, Optional
+from datetime import datetime
 
 from core.constants import DATA_DIR
 
 
 OUTPUT_CALC_FILE = os.path.join(DATA_DIR, 'calculations.xlsx')
+
+
+class PeriodReadingData(TypedDict):
+    tu_type: str
+    last_read: Optional[float]
+    exp: Optional[float]
+    start_date: datetime | None
+    end_date: datetime | None
 
 
 class IntegralReadingFile:
@@ -58,3 +68,8 @@ class PeriodReadingFile:
         END_DATE_COL_IN_PERIOD_READINGS,
         EXP_COL_IN_PERIOD_READINGS,
     ]
+
+    TU_TYPE_PRIORITY: dict[str, int] = {
+        'коммерческий': 2,  # Чем больше, тем выше приоритет
+        'контрольная': 1,
+    }

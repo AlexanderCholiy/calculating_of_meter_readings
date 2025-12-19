@@ -1,6 +1,7 @@
 import os
 import numpy as np
-from typing import Union, Optional
+from typing import Union, Optional, TypedDict
+from datetime import datetime
 
 import pandas as pd
 
@@ -9,14 +10,16 @@ from .constants import (
     ArchiveFile,
     PeriodReadingFile,
     OUTPUT_CALC_FILE,
+    PeriodReadingData,
 )
 from core.logger import calc_logger
 from .exceptions import MissingColumnsError, ExcelSaveError
 from core.wraps import retry
+from calc.services.algoritm import Algoritm
 
 
 class MeterReadingsCalculator(
-    IntegralReadingFile, ArchiveFile, PeriodReadingFile
+    IntegralReadingFile, ArchiveFile, PeriodReadingFile, Algoritm
 ):
 
     def _find_header_row(
@@ -121,6 +124,100 @@ class MeterReadingsCalculator(
             keep_columns=self.REQUIRED_PERIOD_READINGS_COLUMNS,
         )
 
+    def _set_with_priority(
+        self,
+        storage: dict,
+        key: tuple[str, int] | str,
+        value: PeriodReadingData,
+    ) -> bool:
+        new_priority = self.TU_TYPE_PRIORITY.get(value['tu_type'], 0)
+
+        old_value = storage.get(key)
+        if old_value is None:
+            return True
+
+        old_priority = self.TU_TYPE_PRIORITY.get(old_value['tu_type'], 0)
+        return new_priority > old_priority
+
+    def get_period_readings_caches(
+        self
+    ) -> tuple[
+        dict[tuple[str, int], PeriodReadingData], dict[str, PeriodReadingData]
+    ]:
+        """
+        Кэш, для быстрого поиска значений из файла Показания за период.
+
+        Возвращает два словаря для случаев, когда указан шифр опоры + номер ПУ,
+        а также только шифр опоры.
+        """
+        result_with_pu_number = {}
+        result_without_pu_number = {}
+
+        period_readings = self.period_readings
+
+        period_readings = period_readings.rename(columns={
+            self.POLE_COL_IN_PERIOD_READINGS: 'pole',
+            self.PU_NUMBER_COL_IN_PERIOD_READINGS: 'pu_number',
+            self.TU_TYPE_COL_IN_PERIOD_READINGS: 'tu_type',
+            self.LAST_READ_COL_IN_PERIOD_READINGS: 'last_read',
+            self.START_DATE_COL_IN_PERIOD_READINGS: 'start_date',
+            self.END_DATE_COL_IN_PERIOD_READINGS: 'end_date',
+            self.EXP_COL_IN_PERIOD_READINGS: 'exp',
+        })
+
+        bad_key_counter = 0
+
+        for row in period_readings.itertuples(index=False):
+            pole: str = row.pole
+            pu_number: np.int64 = row.pu_number
+
+            if not isinstance(pole, str):
+                bad_key_counter += 1
+                continue
+
+            tu_type: str = row.tu_type.lower().strip()
+            last_read: Optional[float] = row.last_read
+            exp: Optional[float] = row.exp
+
+            start_date = None if pd.isna(row.start_date) else (
+                row.start_date.to_pydatetime().replace(tzinfo=None)
+            )
+
+            end_date = None if pd.isna(row.end_date) else (
+                row.end_date.to_pydatetime().replace(tzinfo=None)
+            )
+
+            value: PeriodReadingData = {
+                'tu_type': tu_type,
+                'last_read': last_read,
+                'start_date': start_date,
+                'end_date': end_date,
+                'exp': exp,
+            }
+
+            if pd.isna(pu_number):
+                key = pole
+                if self._set_with_priority(
+                    result_without_pu_number, key, value
+                ):
+                    result_without_pu_number[pole] = value
+            else:
+                key = (pole, pu_number)
+                if self._set_with_priority(
+                    result_with_pu_number, key, value
+                ):
+                    result_with_pu_number[(pole, int(pu_number))] = value
+
+        if bad_key_counter:
+            filename = os.path.basename(self.PERIOD_READINGS_FILE)
+            calc_logger.warning(
+                f'В файле "{filename}" найдено {bad_key_counter} записей, '
+                'у которых отсутствует значение в столбце '
+                f'"{self.POLE_COL_IN_PERIOD_READINGS}".'
+            )
+
+        return result_with_pu_number, result_without_pu_number
+
     def calculations(self) -> None:
         """
         Дорасчитывает показания счётчиков с сохранением результатов в Excel.
@@ -158,6 +255,19 @@ class MeterReadingsCalculator(
             self.CURRENT_READ_COL_IN_INTEGRAL_READINGS: 'current_readings',
         })
 
+        period_readings_with_pu_number, period_readings_without_pu_number = (
+            self.get_period_readings_caches()
+        )
+
+        total = len(calc_data)
+
+        meta = {
+            'base_algoritm': 0,
+            'extra_algoritm': 0,
+            'unknown_case': 0,
+            'total': total,
+        }
+
         for row in calc_data.itertuples(index=True):
             idx: int = row.Index
 
@@ -169,15 +279,48 @@ class MeterReadingsCalculator(
             if not pd.isna(current_readings):
                 continue
 
+            current_value = None
+
+            # Алгоритмы расчёта:
+            period_reading_data_with_pu_number = (
+                period_readings_with_pu_number.get((pole, pu_number), None)
+            ) if isinstance(pole, str) and not pd.isna(pu_number) else None
+
+            period_reading_data_without_pu_number = (
+                period_readings_without_pu_number.get(pole, None)
+            ) if isinstance(pole, str) else None
+
+            if period_reading_data_with_pu_number:
+                current_value = self.base_algoritm(
+                    period_reading_data_with_pu_number
+                )
+                if current_value is not None:
+                    meta['base_algoritm'] += 1
+
+            if current_value is None and period_reading_data_without_pu_number:
+                current_value = self.extra_algoritm(
+                    period_reading_data_without_pu_number, prev_readings
+                )
+                if current_value is not None:
+                    meta['extra_algoritm'] += 1
+
             # Дозаполняем текущие показания:
-            current_value = prev_readings
+            if current_value is not None:
+                new_integral_readings.loc[
+                    idx, self.CURRENT_READ_COL_IN_INTEGRAL_READINGS
+                ] = current_value
 
-            new_integral_readings.loc[
-                idx, self.CURRENT_READ_COL_IN_INTEGRAL_READINGS
-            ] = current_value
+                calc_data.loc[idx, 'Расход'] = current_value - prev_readings
+            else:
+                meta['unknown_case'] += 1
 
-            # Расход:
-            calc_data.loc[idx, 'Расход'] = current_value - prev_readings
+        if meta['unknown_case']:
+            calc_logger.warning(
+                f'Найдено {meta['unknown_case']} / {total} записей, '
+                'которые не удалось обработать текущими алгоритмами.'
+            )
+
+        calc_logger.debug(meta)
 
         self._save_calculations_results(new_integral_readings, calc_data)
 
