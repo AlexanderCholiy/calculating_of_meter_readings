@@ -1,9 +1,8 @@
 import functools
+import time
 from datetime import datetime
 from logging import Logger
 from typing import Callable
-
-import time
 
 from .utils import format_seconds
 

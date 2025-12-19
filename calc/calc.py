@@ -1,26 +1,30 @@
 import os
-import numpy as np
-from typing import Union, Optional, TypedDict
-from datetime import datetime
+from typing import Optional, Union
 
+import numpy as np
 import pandas as pd
 
-from .constants import (
-    IntegralReadingFile,
-    ArchiveFile,
-    PeriodReadingFile,
-    OUTPUT_CALC_FILE,
-    PeriodReadingData,
-)
-from core.logger import calc_logger
-from .exceptions import MissingColumnsError, ExcelSaveError
-from core.wraps import retry
 from calc.services.algoritm import Algoritm
+from core.logger import calc_logger
+from core.pretty_print import PrettyPrint
+from core.wraps import retry
+from db.connection import TSSessionLocal
+from db.reports.poles_report import PoleReport
+
+from .constants import (
+    OUTPUT_CALC_FILE,
+    ArchiveFile,
+    IntegralReadingFile,
+    PeriodReadingData,
+    PeriodReadingFile,
+)
+from .exceptions import ExcelSaveError, MissingColumnsError
 
 
 class MeterReadingsCalculator(
     IntegralReadingFile, ArchiveFile, PeriodReadingFile, Algoritm
 ):
+    poles_report = None
 
     def _find_header_row(
         self,
@@ -218,6 +222,17 @@ class MeterReadingsCalculator(
 
         return result_with_pu_number, result_without_pu_number
 
+    def get_poles_report(self):
+        if self.poles_report is not None:
+            return self.poles_report
+
+        with TSSessionLocal() as session:
+            poles_report = PoleReport.get_poles_with_master_flag(session)
+
+        self.poles_report = poles_report
+
+        return self.poles_report
+
     def calculations(self) -> None:
         """
         Дорасчитывает показания счётчиков с сохранением результатов в Excel.
@@ -263,6 +278,7 @@ class MeterReadingsCalculator(
 
         meta = {
             'base_algoritm': 0,
+            'add_algoritm': 0,
             'extra_algoritm': 0,
             'unknown_case': 0,
             'total': total,
@@ -270,6 +286,9 @@ class MeterReadingsCalculator(
 
         for row in calc_data.itertuples(index=True):
             idx: int = row.Index
+            PrettyPrint.progress_bar_info(
+                idx, total, 'Дорасчет интегральных показаний:'
+            )
 
             pu_number: np.int64 = row.pu_number
             pole: Union[str, type(pd.NA)] = row.pole  # type: ignore
@@ -298,8 +317,16 @@ class MeterReadingsCalculator(
                     meta['base_algoritm'] += 1
 
             if current_value is None and period_reading_data_without_pu_number:
-                current_value = self.extra_algoritm(
+                current_value = self.add_algoritm(
                     period_reading_data_without_pu_number, prev_readings
+                )
+                if current_value is not None:
+                    meta['add_algoritm'] += 1
+
+            if current_value is None and not isinstance(pole, type(pd.NA)):
+                poles_report = self.get_poles_report()
+                current_value = self.extra_algoritm(
+                    pole, poles_report, prev_readings
                 )
                 if current_value is not None:
                     meta['extra_algoritm'] += 1

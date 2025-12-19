@@ -1,12 +1,12 @@
-import os
-
 import calendar
+import os
 
 import pandas as pd
 
-from datetime import timedelta
-
-from calc.constants import PeriodReadingData, PeriodReadingFile
+from calc.constants import AVG_EXP, PeriodReadingData, PeriodReadingFile
+from db.connection import TSSessionLocal
+from db.constants import PoleData
+from db.models import Pole
 
 
 class Algoritm:
@@ -67,7 +67,7 @@ class Algoritm:
             (exp / delta_days) * (days_in_month - delta_days) + last_read
         )
 
-    def extra_algoritm(
+    def add_algoritm(
         self, period_reading_data: PeriodReadingData, prev_readings: float
     ) -> float | None:
         """
@@ -76,7 +76,6 @@ class Algoritm:
         """
         start_date = period_reading_data['start_date']
         end_date = period_reading_data['end_date']
-        last_read = period_reading_data['last_read']
         exp = period_reading_data['exp']
 
         if any(
@@ -119,3 +118,46 @@ class Algoritm:
         return (
             (exp / delta_days) * (days_in_month - delta_days) + prev_readings
         )
+
+    def extra_algoritm(
+        self,
+        pole: str,
+        poles_report: dict[str, PoleData],
+        prev_readings: float,
+    ) -> float | None:
+        """
+        Применяем данный алгоритм в последнем случае, как расчет по среднему.
+        """
+        pole_data = poles_report.get(pole)
+
+        if pole_data is None:
+            return
+
+        power_source_pole = pole_data['power_source_pole']
+        is_master = pole_data['is_master']
+        is_standalone = pole_data['is_standalone']
+        operator_group_count = pole_data['operator_group_count']
+
+        if power_source_pole:
+            return prev_readings
+
+        if is_standalone:
+            return operator_group_count * AVG_EXP + prev_readings
+
+        if is_master:
+            with TSSessionLocal() as session:
+                poles = (
+                    session
+                    .query(Pole)
+                    .filter(Pole.power_source_pole == pole)
+                    .distinct(Pole.pole)
+                    .all()
+                )
+
+            poles_net = set([p.pole for p in poles] + [pole])
+
+            all_operator_group_count = sum(
+                poles_report[pl]['operator_group_count'] for pl in poles_net
+            )
+
+            return all_operator_group_count + AVG_EXP + prev_readings

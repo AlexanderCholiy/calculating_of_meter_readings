@@ -2,12 +2,12 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from .constants import (
+    CALC_ROTATING_LOG_FILE,
     DB_ROTATING_LOG_FILE,
     DEFAULT_LOG_FILE,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_MODE,
     DEFAULT_ROTATING_LOG_FILE,
-    CALC_ROTATING_LOG_FILE,
 )
 from .exceptions import LoggerError
 

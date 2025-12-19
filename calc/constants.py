@@ -1,11 +1,22 @@
 import os
-from typing import TypedDict, Optional
 from datetime import datetime
+from typing import Optional, TypedDict
+
+from dotenv import load_dotenv
 
 from core.constants import DATA_DIR
 
+load_dotenv(override=True)
 
 OUTPUT_CALC_FILE = os.path.join(DATA_DIR, 'calculations.xlsx')
+
+AVG_EXP = float(os.getenv('AVG_EXP', 1200))
+
+if AVG_EXP < 0:
+    raise ValueError(
+        'Константа AVG_EXP не может быть меньше нуля. '
+        'Проверьте значение в .env файле.'
+    )
 
 
 class PeriodReadingData(TypedDict):
