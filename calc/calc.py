@@ -13,6 +13,7 @@ from db.reports.poles_report import PoleReport
 
 from .constants import (
     OUTPUT_CALC_FILE,
+    ROUND_CALCULATION_DIGITS,
     ArchiveFile,
     IntegralReadingFile,
     PeriodReadingData,
@@ -335,9 +336,12 @@ class MeterReadingsCalculator(
             if current_value is not None:
                 new_integral_readings.loc[
                     idx, self.CURRENT_READ_COL_IN_INTEGRAL_READINGS
-                ] = current_value
+                ] = round(current_value, ROUND_CALCULATION_DIGITS)
 
-                calc_data.loc[idx, 'Расход'] = current_value - prev_readings
+                calc_data.loc[idx, 'Расход'] = round(
+                    current_value - prev_readings,
+                    ROUND_CALCULATION_DIGITS
+                )
             else:
                 meta['unknown_case'] += 1
 
@@ -382,6 +386,11 @@ class MeterReadingsCalculator(
                 })
 
                 add_info.to_excel(writer, sheet_name='add', index=False)
+
+                calc_logger.info(
+                    'Результаты расчета интегральных показаний сохранены в '
+                    f'{OUTPUT_CALC_FILE}'
+                )
 
         except PermissionError:
             raise ExcelSaveError(

@@ -8,7 +8,7 @@ from core.constants import DATA_DIR
 
 load_dotenv(override=True)
 
-OUTPUT_CALC_FILE = os.path.join(DATA_DIR, 'calculations.xlsx')
+OUTPUT_CALC_FILE = os.path.join(DATA_DIR, 'calculation_results.xlsx')
 
 AVG_EXP = float(os.getenv('AVG_EXP', 1200))
 
@@ -17,6 +17,8 @@ if AVG_EXP < 0:
         'Константа AVG_EXP не может быть меньше нуля. '
         'Проверьте значение в .env файле.'
     )
+
+ROUND_CALCULATION_DIGITS = 2
 
 
 class PeriodReadingData(TypedDict):

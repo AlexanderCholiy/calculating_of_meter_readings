@@ -3,13 +3,19 @@ import os
 
 import pandas as pd
 
-from calc.constants import AVG_EXP, PeriodReadingData, PeriodReadingFile
+from calc.constants import (
+    AVG_EXP,
+    PeriodReadingData,
+    PeriodReadingFile,
+)
 from db.connection import TSSessionLocal
 from db.constants import PoleData
 from db.models import Pole
 
 
 class Algoritm:
+
+    _poles_networks: dict[str, set[str]] | None = None
 
     def base_algoritm(
         self, period_reading_data: PeriodReadingData
@@ -145,19 +151,45 @@ class Algoritm:
             return operator_group_count * AVG_EXP + prev_readings
 
         if is_master:
-            with TSSessionLocal() as session:
-                poles = (
-                    session
-                    .query(Pole)
-                    .filter(Pole.power_source_pole == pole)
-                    .distinct(Pole.pole)
-                    .all()
-                )
+            poles_net = self._get_poles_networks().get(pole)
 
-            poles_net = set([p.pole for p in poles] + [pole])
+            if not poles_net:
+                raise ValueError(
+                    f'Опоры {pole} не существует. Проверьте данные.'
+                )
 
             all_operator_group_count = sum(
                 poles_report[pl]['operator_group_count'] for pl in poles_net
             )
 
             return all_operator_group_count + AVG_EXP + prev_readings
+
+    def _get_poles_networks(self) -> dict[str, set[str]]:
+        """
+        Возвращает словарь:
+        {
+            'MASTER_POLE': {'SUB_POLE_1', 'SUB_POLE_2'}
+        }
+        """
+        if self._poles_networks is not None:
+            return self._poles_networks
+
+        with TSSessionLocal() as session:
+            rows = (
+                session
+                .query(Pole.pole, Pole.power_source_pole)
+                .filter(Pole.power_source_pole.isnot(None))
+                .all()
+            )
+
+        networks: dict[str, set[str]] = {}
+
+        for sub_pole, master_pole in rows:
+            networks.setdefault(master_pole, set()).add(sub_pole)
+
+        for master, subs in networks.items():
+            subs.add(master)
+
+        self._poles_networks = networks
+
+        return networks
