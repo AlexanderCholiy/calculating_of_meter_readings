@@ -359,6 +359,16 @@ class MeterReadingsCalculator(
     def _save_calculations_results(
         self, new_integral_readings: pd.DataFrame, calc_data: pd.DataFrame
     ):
+        for col in [self.CODE_EO_COL_IN_INTEGRAL_READINGS]:
+            new_integral_readings[col] = (
+                new_integral_readings[col].astype('string')
+            )
+
+        for col in [self.CODE_EO_COL_IN_INTEGRAL_READINGS]:
+            calc_data[col] = (
+                calc_data[col].astype('string')
+            )
+
         try:
             with pd.ExcelWriter(
                 OUTPUT_CALC_FILE, engine='openpyxl', mode='w'

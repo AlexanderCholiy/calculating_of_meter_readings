@@ -1,4 +1,5 @@
 import os
+import sys
 from logging import DEBUG as DEBUG_MODE
 from logging import INFO
 
@@ -6,13 +7,15 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+IS_EXE = getattr(sys, 'frozen', False)
 
-BASE_DIR = os.path.normpath(
-    os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), '..'
-    )
+# Проверяем, запущен ли скрипт как exe:
+FILE_DIR = os.path.dirname(sys.executable) if IS_EXE else (
+    os.path.dirname(os.path.abspath(__file__))
 )
+BASE_DIR = os.path.normpath(os.path.join(FILE_DIR, '..'))
+
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)

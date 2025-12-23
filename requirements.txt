@@ -1,3 +1,4 @@
+altgraph==0.17.5
 colorama==0.4.6
 et_xmlfile==2.0.0
 flake8==7.3.0
@@ -6,13 +7,19 @@ isort==7.0.0
 mccabe==0.7.0
 numpy==2.3.5
 openpyxl==3.1.5
+packaging==25.0
 pandas==2.3.3
+pefile==2024.8.26
 psycopg2-binary==2.9.11
 pycodestyle==2.14.0
 pyflakes==3.4.0
+pyinstaller==6.17.0
+pyinstaller-hooks-contrib==2025.10
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
 pytz==2025.2
+pywin32-ctypes==0.2.3
+setuptools==80.9.0
 six==1.17.0
 SQLAlchemy==2.0.45
 typing_extensions==4.15.0
