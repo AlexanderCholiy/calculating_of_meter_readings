@@ -1,4 +1,5 @@
 import os
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional, Union
 
 import numpy as np
@@ -200,18 +201,16 @@ class MeterReadingsCalculator(
                 'exp': exp,
             }
 
-            if pd.isna(pu_number):
-                key = pole
-                if self._set_with_priority(
-                    result_without_pu_number, key, value
-                ):
-                    result_without_pu_number[pole] = value
-            else:
-                key = (pole, pu_number)
-                if self._set_with_priority(
-                    result_with_pu_number, key, value
-                ):
-                    result_with_pu_number[(pole, int(pu_number))] = value
+            # Важно сформировать два полных словаря:
+            if not pd.isna(pu_number):
+                base_key = (pole, int(pu_number))
+                result_with_pu_number[base_key] = value
+
+            add_key = pole
+            if self._set_with_priority(
+                result_without_pu_number, add_key, value
+            ):
+                result_without_pu_number[add_key] = value
 
         if bad_key_counter:
             filename = os.path.basename(self.PERIOD_READINGS_FILE)
@@ -336,11 +335,14 @@ class MeterReadingsCalculator(
             if current_value is not None:
                 new_integral_readings.loc[
                     idx, self.CURRENT_READ_COL_IN_INTEGRAL_READINGS
-                ] = round(current_value, ROUND_CALCULATION_DIGITS)
+                ] = float(
+                    Decimal(current_value)
+                    .quantize(ROUND_CALCULATION_DIGITS, ROUND_HALF_UP)
+                )
 
-                calc_data.loc[idx, 'Расход'] = round(
-                    current_value - prev_readings,
-                    ROUND_CALCULATION_DIGITS
+                calc_data.loc[idx, 'Расход'] = float(
+                    Decimal(current_value - prev_readings)
+                    .quantize(ROUND_CALCULATION_DIGITS, ROUND_HALF_UP)
                 )
             else:
                 meta['unknown_case'] += 1

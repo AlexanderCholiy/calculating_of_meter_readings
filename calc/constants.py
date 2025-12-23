@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional, TypedDict
 
 from dotenv import load_dotenv
@@ -18,7 +19,7 @@ if AVG_EXP < 0:
         'Проверьте значение в .env файле.'
     )
 
-ROUND_CALCULATION_DIGITS = 2
+ROUND_CALCULATION_DIGITS = Decimal('0.00')
 
 
 class PeriodReadingData(TypedDict):

@@ -1,18 +1,19 @@
 from calc.calc import MeterReadingsCalculator
+from core.constants import IS_EXE
 from core.logger import app_logger
 from core.wraps import timer
 from db.utils import check_db_connection
 
-from core.constants import IS_EXE
-
 
 @timer(app_logger)
 def main():
-    if not check_db_connection():
-        return
-
-    calculator = MeterReadingsCalculator()
-    calculator.calculations()
+    try:
+        check_db_connection()
+        calculator = MeterReadingsCalculator()
+        calculator.calculations()
+    except Exception as e:
+        app_logger.exception(e)
+        raise
 
 
 if __name__ == '__main__':
