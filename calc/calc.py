@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from calc.services.algoritm import Algoritm
+from core.constants import DEBUG
 from core.logger import calc_logger
 from core.pretty_print import PrettyPrint
 from core.wraps import retry
@@ -27,6 +28,8 @@ class MeterReadingsCalculator(
     IntegralReadingFile, ArchiveFile, PeriodReadingFile, Algoritm
 ):
     poles_report = None
+
+    algoritm_column_name = 'Алгоритм'
 
     def _find_header_row(
         self,
@@ -309,19 +312,21 @@ class MeterReadingsCalculator(
                 period_readings_without_pu_number.get(pole, None)
             ) if isinstance(pole, str) else None
 
+            algoritm_name = 'unknown_case'
+
             if period_reading_data_with_pu_number:
                 current_value = self.base_algoritm(
                     period_reading_data_with_pu_number
                 )
                 if current_value is not None:
-                    meta['base_algoritm'] += 1
+                    algoritm_name = 'base_algoritm'
 
             if current_value is None and period_reading_data_without_pu_number:
                 current_value = self.add_algoritm(
                     period_reading_data_without_pu_number, prev_readings
                 )
                 if current_value is not None:
-                    meta['add_algoritm'] += 1
+                    algoritm_name = 'add_algoritm'
 
             if current_value is None and not isinstance(pole, type(pd.NA)):
                 poles_report = self.get_poles_report()
@@ -329,7 +334,9 @@ class MeterReadingsCalculator(
                     pole, poles_report, prev_readings
                 )
                 if current_value is not None:
-                    meta['extra_algoritm'] += 1
+                    algoritm_name = 'extra_algoritm'
+
+            meta[algoritm_name] += 1
 
             # Дозаполняем текущие показания:
             if current_value is not None:
@@ -344,8 +351,8 @@ class MeterReadingsCalculator(
                     Decimal(current_value - prev_readings)
                     .quantize(ROUND_CALCULATION_DIGITS, ROUND_HALF_UP)
                 )
-            else:
-                meta['unknown_case'] += 1
+
+                calc_data.loc[idx, self.algoritm_column_name] = algoritm_name
 
         if meta['unknown_case']:
             calc_logger.warning(
@@ -388,6 +395,10 @@ class MeterReadingsCalculator(
                     self.ASKUE_COL_IN_ARCHIVE,
                     'Расход',
                 ]
+
+                if DEBUG:
+                    keep_columns.append(self.algoritm_column_name)
+
                 add_info = calc_data[
                     [col for col in keep_columns if col in calc_data.columns]
                 ].copy()

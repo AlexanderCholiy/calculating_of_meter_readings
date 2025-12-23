@@ -162,7 +162,7 @@ class Algoritm:
                 poles_report[pl]['operator_group_count'] for pl in poles_net
             )
 
-            return all_operator_group_count + AVG_EXP + prev_readings
+            return all_operator_group_count * AVG_EXP + prev_readings
 
     def _get_poles_networks(self) -> dict[str, set[str]]:
         """

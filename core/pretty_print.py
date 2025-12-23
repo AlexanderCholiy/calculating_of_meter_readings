@@ -5,7 +5,7 @@ from typing import Optional
 
 from colorama import Back, Fore, Style
 
-from .constants import DEBUG
+from .constants import DEBUG, IS_EXE
 
 
 class PrettyPrint:
@@ -32,7 +32,7 @@ class PrettyPrint:
             DIM)
             var_style (str): стиль переменных
         """
-        if not DEBUG:
+        if not DEBUG or IS_EXE:
             return
 
         result = ""
@@ -128,7 +128,7 @@ class PrettyPrint:
         percent_bg: str,
         bar_length: Optional[int],
     ) -> None:
-        if not DEBUG or total <= 0:
+        if not DEBUG or IS_EXE or total <= 0:
             return
 
         iteration = min(iteration + 1, total)
