@@ -5,4 +5,4 @@
 ```bash
 pyinstaller --onefile --icon=icon.ico --add-data "data;data" --add-data "logs;logs" main.py
 ```
-| для создания exe файла запуститье 
+| Создание исполняемого файла из python скрипта

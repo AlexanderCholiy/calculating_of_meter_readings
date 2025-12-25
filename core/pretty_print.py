@@ -3,9 +3,16 @@ import shutil
 from datetime import datetime
 from typing import Optional
 
-from colorama import Back, Fore, Style
+from colorama import Back, Fore, Style, init
 
 from .constants import DEBUG, IS_EXE
+
+if IS_EXE:
+    init(
+        autoreset=True,
+        convert=True,
+        strip=False,
+    )
 
 
 class PrettyPrint:
@@ -32,7 +39,7 @@ class PrettyPrint:
             DIM)
             var_style (str): стиль переменных
         """
-        if not DEBUG or IS_EXE:
+        if not DEBUG:
             return
 
         result = ""
@@ -128,7 +135,7 @@ class PrettyPrint:
         percent_bg: str,
         bar_length: Optional[int],
     ) -> None:
-        if not DEBUG or IS_EXE or total <= 0:
+        if not DEBUG or total <= 0:
             return
 
         iteration = min(iteration + 1, total)
