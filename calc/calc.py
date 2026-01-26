@@ -48,14 +48,20 @@ class MeterReadingsCalculator(
         )
 
         required = set(required_columns)
+        all_seen_columns = set()
 
         for idx, row in preview.iterrows():
             row_values = {str(cell).strip() for cell in row if pd.notna(cell)}
             if required.issubset(row_values):
                 return idx
 
+            all_seen_columns.update(row_values)
+
+        missing = required - all_seen_columns
+        actual_missing = tuple(missing) if missing else required_columns
+
         filename = os.path.basename(file_path)
-        raise MissingColumnsError(required_columns, filename)
+        raise MissingColumnsError(actual_missing, filename)
 
     def _read_and_cast(
         self,
@@ -284,6 +290,7 @@ class MeterReadingsCalculator(
             'add_algoritm': 0,
             'extra_algoritm': 0,
             'unknown_case': 0,
+            'unvalid_case': 0,
             'total': total,
         }
 
@@ -298,7 +305,12 @@ class MeterReadingsCalculator(
             prev_readings: float = row.prev_readings
             current_readings: Optional[float] = row.current_readings
 
+            algoritm_name = 'unknown_case'
+
             if not pd.isna(current_readings):
+                algoritm_name = 'unvalid_case'
+                meta[algoritm_name] += 1
+                calc_data.loc[idx, self.algoritm_column_name] = algoritm_name
                 continue
 
             current_value = None
@@ -311,8 +323,6 @@ class MeterReadingsCalculator(
             period_reading_data_without_pu_number = (
                 period_readings_without_pu_number.get(pole, None)
             ) if isinstance(pole, str) else None
-
-            algoritm_name = 'unknown_case'
 
             if period_reading_data_with_pu_number:
                 current_value = self.base_algoritm(
@@ -395,6 +405,9 @@ class MeterReadingsCalculator(
                     self.ASKUE_COL_IN_ARCHIVE,
                     'Расход',
                 ]
+
+                if self.EXTRA_COLUMNS:
+                    keep_columns.extend(self.EXTRA_COLUMNS)
 
                 if DEBUG:
                     keep_columns.append(self.algoritm_column_name)

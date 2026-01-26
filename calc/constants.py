@@ -61,6 +61,14 @@ class ArchiveFile:
         ASKUE_COL_IN_ARCHIVE,
     ]
 
+    EXTRA_COLUMNS = [
+        s.strip() for s in os.getenv('ARCHIVE_EXTRA_COLUMNS', '').split(',')
+        if s.strip()
+    ]
+
+    if EXTRA_COLUMNS:
+        REQUIRED_ARCHIVE_COLUMNS.extend(EXTRA_COLUMNS)
+
 
 class PeriodReadingFile:
     PERIOD_READINGS_FILE = os.path.join(DATA_DIR, 'показания_за_период.xlsx')
