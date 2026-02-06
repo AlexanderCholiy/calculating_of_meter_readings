@@ -1,4 +1,5 @@
 import functools
+import threading
 import time
 from datetime import datetime
 from logging import Logger
@@ -83,5 +84,36 @@ def retry(
                     )
                     logger.warn(msg, exc_info=False)
                     time.sleep(current_delay)
+        return wrapper
+    return decorator
+
+
+def timeout(seconds: int):
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            result = []
+            exception = []
+
+            def target():
+                try:
+                    result.append(func(*args, **kwargs))
+                except Exception as e:
+                    exception.append(e)
+
+            thread = threading.Thread(target=target)
+            thread.daemon = True
+            thread.start()
+            thread.join(timeout=seconds)
+
+            if thread.is_alive():
+                raise TimeoutError(
+                    f'Функция {func.__name__} превысила лимит {seconds} сек.'
+                )
+
+            if exception:
+                raise exception[0]
+
+            return result[0] if result else None
         return wrapper
     return decorator

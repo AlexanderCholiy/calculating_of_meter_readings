@@ -9,6 +9,8 @@ load_dotenv(override=True)
 
 IS_EXE = getattr(sys, 'frozen', False)
 
+GLOBAL_TIMEOUT = int(os.getenv('GLOBAL_TIMEOUT', 15 * 60))
+
 # Проверяем, запущен ли скрипт как exe:
 FILE_DIR = os.path.dirname(sys.executable) if IS_EXE else (
     os.path.dirname(os.path.abspath(__file__))
@@ -19,6 +21,9 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
+
+TMP_DIR = os.path.join(DATA_DIR, 'tmp')
+os.makedirs(TMP_DIR, exist_ok=True)
 
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 

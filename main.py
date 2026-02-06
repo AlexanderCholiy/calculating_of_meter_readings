@@ -1,12 +1,13 @@
 import sys
 
-from calc.calc import MeterReadingsCalculator
-from core.constants import IS_EXE
+from calc.power_calc import MeterReadingsCalculator
+from core.constants import GLOBAL_TIMEOUT, IS_EXE
 from core.logger import app_logger
-from core.wraps import timer
+from core.wraps import timeout, timer
 from db.utils import check_db_connection
 
 
+@timeout(GLOBAL_TIMEOUT)
 @timer(app_logger)
 def main():
     try:
@@ -29,7 +30,10 @@ if __name__ == '__main__':
     if update_data:
         sys.exit(1)
 
-    main()
+    try:
+        main()
+    except TimeoutError as e:
+        app_logger.critical(e)
 
     while True and IS_EXE:
         exit_check = (

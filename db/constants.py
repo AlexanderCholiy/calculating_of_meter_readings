@@ -1,7 +1,10 @@
 import os
+from pathlib import Path
 from typing import Optional, TypedDict
 
 from dotenv import load_dotenv
+
+from core.constants import TMP_DIR
 
 load_dotenv(override=True)
 
@@ -14,3 +17,12 @@ class PoleData(TypedDict):
     is_master: bool
     is_standalone: bool
     operator_group_count: int
+
+
+RAISE_TS_POLE_TABLE_LIMIT = 50_000
+
+POLES_REPORT_CACHE_TTL = 60 * 60
+
+POLES_REPORT_CACHE_CACHE_FILE = Path(
+    os.path.join(TMP_DIR, '__cache_poles_report.json')
+)

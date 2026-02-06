@@ -1,19 +1,13 @@
+import json
 import os
+import time
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 
-from calc.services.algoritm import Algoritm
-from core.constants import DEBUG
-from core.logger import calc_logger
-from core.pretty_print import PrettyPrint
-from core.wraps import retry
-from db.connection import TSSessionLocal
-from db.reports.poles_report import PoleReport
-
-from .constants import (
+from calc.constants import (
     OUTPUT_CALC_FILE,
     ROUND_CALCULATION_DIGITS,
     ArchiveFile,
@@ -21,15 +15,29 @@ from .constants import (
     PeriodReadingData,
     PeriodReadingFile,
 )
+from core.constants import DEBUG
+from core.logger import calc_logger
+from core.pretty_print import PrettyPrint
+from core.wraps import retry
+from db.connection import TSSessionLocal
+from db.constants import (
+    POLES_REPORT_CACHE_CACHE_FILE,
+    POLES_REPORT_CACHE_TTL,
+    PoleData,
+)
+from db.reports.poles_report import PoleReport
+
 from .exceptions import ExcelSaveError, MissingColumnsError
+from .services.algoritm import Algoritm
 
 
 class MeterReadingsCalculator(
     IntegralReadingFile, ArchiveFile, PeriodReadingFile, Algoritm
 ):
-    poles_report = None
-
     algoritm_column_name = 'Алгоритм'
+
+    def __init__(self):
+        self._poles_report: dict[str, PoleData] | None = None
 
     def _find_header_row(
         self,
@@ -231,16 +239,51 @@ class MeterReadingsCalculator(
 
         return result_with_pu_number, result_without_pu_number
 
-    def get_poles_report(self):
-        if self.poles_report is not None:
-            return self.poles_report
+    @property
+    def poles_report(self):
+        if self._poles_report is not None:
+            return self._poles_report
+
+        if POLES_REPORT_CACHE_CACHE_FILE.exists():
+            file_age = (
+                time.time()
+                - POLES_REPORT_CACHE_CACHE_FILE.stat().st_mtime
+            )
+
+            if file_age < POLES_REPORT_CACHE_TTL:
+                try:
+                    with open(
+                        POLES_REPORT_CACHE_CACHE_FILE, 'r', encoding='utf-8'
+                    ) as f:
+                        self._poles_report = json.load(f)
+
+                    file_age_msg = PrettyPrint.format_seconds_2_human_time(
+                        file_age
+                    )
+                    calc_logger.debug(
+                        'Загружен отчет из файлового кэша '
+                        f'(возраст: {file_age_msg})'
+                    )
+                    return self._poles_report
+
+                except Exception as e:
+                    calc_logger.warning(f'Ошибка чтения кэша: {e}. Идем в БД.')
 
         with TSSessionLocal() as session:
-            poles_report = PoleReport.get_poles_with_master_flag(session)
+            self._poles_report = PoleReport.get_poles_with_master_flag(session)
 
-        self.poles_report = poles_report
+        try:
+            with open(
+                POLES_REPORT_CACHE_CACHE_FILE, 'w', encoding='utf-8'
+            ) as f:
+                json.dump(self._poles_report, f, ensure_ascii=False, indent=4)
+            calc_logger.debug(
+                f'Отчет сохранен в кэш: {POLES_REPORT_CACHE_CACHE_FILE}'
+            )
+        except Exception as e:
+            calc_logger.error(f'Не удалось сохранить кэш: {e}')
 
-        return self.poles_report
+        return self._poles_report
 
     def calculations(self) -> None:
         """
@@ -294,6 +337,8 @@ class MeterReadingsCalculator(
             'total': total,
         }
 
+        self.poles_report
+
         for row in calc_data.itertuples(index=True):
             idx: int = row.Index
             PrettyPrint.progress_bar_info(
@@ -339,9 +384,8 @@ class MeterReadingsCalculator(
                     algoritm_name = 'add_algoritm'
 
             if current_value is None and not isinstance(pole, type(pd.NA)):
-                poles_report = self.get_poles_report()
                 current_value = self.extra_algoritm(
-                    pole, poles_report, prev_readings
+                    pole, self.poles_report, prev_readings
                 )
                 if current_value is not None:
                     algoritm_name = 'extra_algoritm'

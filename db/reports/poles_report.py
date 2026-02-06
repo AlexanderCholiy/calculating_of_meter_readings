@@ -1,13 +1,21 @@
 from sqlalchemy import case, exists, func
 from sqlalchemy.orm import Session, aliased
 
-from db.constants import PoleData
+from core.logger import db_logger
+from core.pretty_print import PrettyPrint
+from core.wraps import timer
+from db.constants import (
+    RAISE_TS_POLE_TABLE_LIMIT,
+    PoleData,
+)
+from db.exceprions import EmptyTableError
 from db.models import Operator, Pole
 
 
 class PoleReport:
 
     @staticmethod
+    @timer(db_logger, is_debug=False)
     def get_poles_with_master_flag(session: Session) -> dict[str, PoleData]:
         """
         Формирует отчет по опорам.
@@ -30,6 +38,13 @@ class PoleReport:
         Возвращает словарь, где ключ — шифр опоры, а значение — агрегированные
         данные по опоре.
         """
+        timeout_limit_msg = PrettyPrint.format_seconds_2_human_time(5 * 60)
+        PrettyPrint.warning_print(
+            ('Запрашиваем данные в TowerStore.', False),
+            ('Операция может занять продолжительное время', False),
+            (f'({timeout_limit_msg}).', True),
+        )
+
         PoleAlias = aliased(Pole)
 
         is_master = case(
@@ -78,9 +93,17 @@ class PoleReport:
             .group_by(Pole)
         ).all()
 
+        total = len(pole_qs)
+        if total < RAISE_TS_POLE_TABLE_LIMIT:
+            raise EmptyTableError(Pole.__tablename__, total)
+
         poles_report = {}
 
-        for row in pole_qs:
+        for index, row in enumerate(pole_qs):
+            PrettyPrint.progress_bar_warning(
+                index, total, 'Обработка данных из TowerStore:'
+            )
+
             poles_report[row .pole] = {
                 'id': row.id,
                 'power_source_pole': row.power_source_pole,

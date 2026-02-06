@@ -230,6 +230,29 @@ class PrettyPrint:
             i, total, msg, Fore.RED, Back.RED, bar_length
         )
 
+    @staticmethod
+    def format_seconds_2_human_time(seconds: int | float) -> str:
+        total_seconds = int(round(seconds))
+
+        if total_seconds == 0:
+            return '0 сек' if seconds == 0 else '< 1 сек'
+
+        intervals = (
+            ('дн', 86400),
+            ('час', 3600),
+            ('мин', 60),
+            ('сек', 1),
+        )
+
+        result = []
+        for name, count in intervals:
+            value = total_seconds // count
+            if value:
+                total_seconds -= value * count
+                result.append(f'{value} {name}')
+
+        return ' '.join(result)
+
 
 def test_print():
     test_msg = (
