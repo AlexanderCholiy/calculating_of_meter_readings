@@ -6,6 +6,7 @@ from logging import Logger
 from typing import Callable
 
 from .utils import format_seconds
+from .constants import IS_EXE
 
 
 def timer(logger: Logger, is_debug: bool = True) -> Callable:
@@ -115,5 +116,23 @@ def timeout(seconds: int):
                 raise exception[0]
 
             return result[0] if result else None
+        return wrapper
+    return decorator
+
+
+def handle_exceptions(logger: Logger):
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                logger.exception(f'Критическая ошибка в {func.__name__}: {e}')
+
+                if not IS_EXE:
+                    raise
+            return None
         return wrapper
     return decorator

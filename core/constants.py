@@ -41,3 +41,6 @@ os.makedirs(os.path.dirname(DB_ROTATING_LOG_FILE), exist_ok=True)
 
 CALC_ROTATING_LOG_FILE = os.path.join(LOG_DIR, 'calc', 'calc.log')
 os.makedirs(os.path.dirname(CALC_ROTATING_LOG_FILE), exist_ok=True)
+
+EMAIL_ROTATING_LOG_FILE = os.path.join(LOG_DIR, 'emails', 'email.log')
+os.makedirs(os.path.dirname(EMAIL_ROTATING_LOG_FILE), exist_ok=True)

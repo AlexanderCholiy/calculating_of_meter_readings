@@ -286,7 +286,7 @@ class MeterReadingsCalculator(
 
         return self._poles_report
 
-    def calculations(self):
+    def calculations(self) -> dict[str, float]:
         """
         Дорасчитывает показания счётчиков с сохранением результатов в Excel.
 
@@ -428,6 +428,8 @@ class MeterReadingsCalculator(
         self._save_calculations_results_2_excel(
             new_integral_readings, calc_data
         )
+
+        return result_dict
 
     @retry(calc_logger, delay=30, exceptions=(ExcelSaveError,))
     def _save_calculations_results_2_excel(

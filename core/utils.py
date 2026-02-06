@@ -1,3 +1,9 @@
+from pathlib import Path
+import shutil
+
+from .logger import app_logger
+
+
 def format_seconds(seconds: float) -> str:
     """Форматирует время в секундах в читаемый вид."""
     if seconds < 0.001:
@@ -23,3 +29,19 @@ def format_seconds(seconds: float) -> str:
         remaining_hours = int((seconds % 86400) // 3600)
         remaining_minutes = int((seconds % 3600) // 60)
         return f'{days} дн {remaining_hours} ч {remaining_minutes} мин'
+
+
+def clear_folder(folder_path: str | Path):
+    folder = Path(folder_path)
+
+    if not folder.exists():
+        return
+
+    for item in folder.iterdir():
+        try:
+            if item.is_file() or item.is_symlink():
+                item.unlink()
+            elif item.is_dir():
+                shutil.rmtree(item)
+        except Exception as e:
+            app_logger.debug(f'Не удалось удалить {item}: {e}')
