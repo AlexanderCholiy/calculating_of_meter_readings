@@ -10,6 +10,7 @@ import pandas as pd
 from calc.constants import (
     OUTPUT_CALC_FILE,
     ROUND_CALCULATION_DIGITS,
+    POWER_CALC_RESULT_FILE,
     ArchiveFile,
     IntegralReadingFile,
     PeriodReadingData,
@@ -285,7 +286,7 @@ class MeterReadingsCalculator(
 
         return self._poles_report
 
-    def calculations(self) -> None:
+    def calculations(self):
         """
         Дорасчитывает показания счётчиков с сохранением результатов в Excel.
 
@@ -416,10 +417,20 @@ class MeterReadingsCalculator(
 
         calc_logger.debug(meta)
 
-        self._save_calculations_results(new_integral_readings, calc_data)
+        result_dict = (
+            calc_data.dropna(subset=['pole', 'Расход'])
+            .set_index('pole')['Расход']
+            .to_dict()
+        )
+
+        self._save_calculations_results_2_json(result_dict)
+
+        self._save_calculations_results_2_excel(
+            new_integral_readings, calc_data
+        )
 
     @retry(calc_logger, delay=30, exceptions=(ExcelSaveError,))
-    def _save_calculations_results(
+    def _save_calculations_results_2_excel(
         self, new_integral_readings: pd.DataFrame, calc_data: pd.DataFrame
     ):
         for col in [self.CODE_EO_COL_IN_INTEGRAL_READINGS]:
@@ -481,3 +492,8 @@ class MeterReadingsCalculator(
                     'Возможно, файл открыт в другой программе?'
                 )
             )
+
+    @retry(calc_logger, delay=30, exceptions=(PermissionError,))
+    def _save_calculations_results_2_json(self, result: dict):
+        with open(POWER_CALC_RESULT_FILE, 'w', encoding='utf-8') as f:
+            json.dump(result, f, ensure_ascii=False, indent=4)

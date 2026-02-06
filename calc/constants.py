@@ -1,15 +1,22 @@
 import os
+from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, TypedDict
 
 from dotenv import load_dotenv
 
-from core.constants import DATA_DIR
+from core.constants import DATA_DIR, TMP_DIR
 
 load_dotenv(override=True)
 
 OUTPUT_CALC_FILE = os.path.join(DATA_DIR, 'calculation_results.xlsx')
+
+POWER_CALC_RESULT_FILE = Path(
+    os.path.join(TMP_DIR, '__power_calc_result.json')
+)
+
+POWER_CALC_RESULT_TTL = 3600
 
 AVG_EXP = float(os.getenv('AVG_EXP', 1200))
 
