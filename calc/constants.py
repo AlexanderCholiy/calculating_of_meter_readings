@@ -16,7 +16,7 @@ POWER_CALC_RESULT_FILE = Path(
     os.path.join(TMP_DIR, '__power_calc_result.json')
 )
 
-POWER_CALC_RESULT_TTL = 60 * 60 * 1000000000000000000000000000000000000000000000000 
+POWER_CALC_RESULT_TTL = 10 * 60 * 1000000000000000000000000000000000000000000000000 
 
 AVG_EXP = float(os.getenv('AVG_EXP', 1200))
 
@@ -102,3 +102,17 @@ class PeriodReadingFile:
         'коммерческий': 2,  # Чем больше, тем выше приоритет
         'контрольная': 1,
     }
+
+
+class PowerProfileFile:
+    POLE_COL_IN_POWER_PROFILE = 'Наименование объекта'
+    BS_COL_IN_POWER_PROFILE = 'Базовая станция'
+    PU_NUMBER_COL_IN_POWER_PROFILE = 'Прибор учета'
+
+    USE_BY_METER_COL_IN_POWER_PROFILE = 'Потребление за период по показаниям'
+    USE_BY_PROFILE_COL_IN_POWER_PROFILE = 'Потребление за период по профилю'
+
+    DATETIME_FORMAT_POWER_PROFILE = '%d.%m.%Y %H:%M'
+
+
+PROFILE_SUMPLES_NUMBERS = 100

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from core.constants import DATA_DIR
 
@@ -9,7 +10,7 @@ ALLOWED_MIME_PREFIXES = {'application/vnd.ms-excel'}
 
 ALLOWED_EXTENSIONS = {'.xls', '.xlsx'}
 
-EMAIL_DIR = os.path.join(DATA_DIR, 'emails')
+EMAIL_DIR = Path(os.path.join(DATA_DIR, 'emails'))
 os.makedirs(EMAIL_DIR, exist_ok=True)
 
 FILENAME_DATETIME_PREFIX = '%Y-%m-%d_%H-%M'

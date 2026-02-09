@@ -19,3 +19,9 @@ class ExcelSaveError(PermissionError):
             f'Не удалось сохранить результаты в файл {file_path}.'
         )
         super().__init__(message or default_message)
+
+
+class EmptyPowerProfile(ValueError):
+    """Исключение: отсутствуют данные для расчета профиля мощности."""
+    def __init__(self):
+        super().__init__('Нет данных для расчета профиля мощности.')

@@ -45,3 +45,24 @@ def clear_folder(folder_path: str | Path):
                 shutil.rmtree(item)
         except Exception as e:
             app_logger.debug(f'Не удалось удалить {item}: {e}')
+
+
+def get_sorted_excel_files(
+    directory: Path, reverse: bool = True
+) -> list[Path]:
+    """
+    Находит все Excel-файлы в директории и сортирует их по имени.
+    По умолчанию самые свежие файлы (с датой в начале имени) будут первыми.
+    """
+    files = [
+        f for f in directory.iterdir()
+        if f.is_file() 
+        and f.suffix.lower() in ('.xls', '.xlsx')
+        and not f.name.startswith('~$')  # исключаем временные файлы Excel ~$
+    ]
+
+    # Поскольку формат даты %Y-%m-%d в начале имени,
+    # обычная сортировка строк совпадает с хронологической.
+    files.sort(key=lambda x: x.name, reverse=reverse)
+
+    return files

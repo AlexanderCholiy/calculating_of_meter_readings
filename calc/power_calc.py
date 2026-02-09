@@ -40,8 +40,8 @@ class MeterReadingsCalculator(
     def __init__(self):
         self._poles_report: dict[str, PoleData] | None = None
 
-    def _find_header_row(
-        self,
+    @staticmethod
+    def find_header_row(
         file_path: str,
         required_columns: tuple[str],
         max_rows: int = 25,
@@ -72,8 +72,8 @@ class MeterReadingsCalculator(
         filename = os.path.basename(file_path)
         raise MissingColumnsError(actual_missing, filename)
 
-    def _read_and_cast(
-        self,
+    @staticmethod
+    def read_and_cast_excel_file(
         file_path: str,
         required_columns: tuple[str],
         int_columns: tuple[str] = (),
@@ -84,7 +84,7 @@ class MeterReadingsCalculator(
         """
         Чтение Excel, поиск заголовков, проверка колонок и приведение типов.
         """
-        header_row = self._find_header_row(
+        header_row = MeterReadingsCalculator.find_header_row(
             file_path=file_path,
             required_columns=required_columns,
         )
@@ -108,7 +108,7 @@ class MeterReadingsCalculator(
 
     @property
     def integral_readings(self) -> pd.DataFrame:
-        return self._read_and_cast(
+        return self.read_and_cast_excel_file(
             file_path=self.INTEGRAL_READINGS_FILE,
             required_columns=self.REQUIRED_INTEGRAL_READINGS_COLUMNS,
             int_columns=(
@@ -123,7 +123,7 @@ class MeterReadingsCalculator(
 
     @property
     def archive(self) -> pd.DataFrame:
-        return self._read_and_cast(
+        return self.read_and_cast_excel_file(
             file_path=self.ARCHIVE_FILE,
             required_columns=self.REQUIRED_ARCHIVE_COLUMNS,
             int_columns=(self.CODE_EO_COL_IN_ARCHIVE,),
@@ -133,7 +133,7 @@ class MeterReadingsCalculator(
 
     @property
     def period_readings(self) -> pd.DataFrame:
-        return self._read_and_cast(
+        return self.read_and_cast_excel_file(
             file_path=self.PERIOD_READINGS_FILE,
             required_columns=self.REQUIRED_PERIOD_READINGS_COLUMNS,
             int_columns=(self.PU_NUMBER_COL_IN_PERIOD_READINGS,),
@@ -417,9 +417,15 @@ class MeterReadingsCalculator(
 
         calc_logger.debug(meta)
 
+        calc_data['composite_id'] = (
+            calc_data['pole'].astype(str)
+            + '__'
+            + calc_data['pu_number'].astype(str)
+        )
+
         result_dict = (
-            calc_data.dropna(subset=['pole', 'Расход'])
-            .set_index('pole')['Расход']
+            calc_data.dropna(subset=['composite_id', 'Расход'])
+            .set_index('composite_id')['Расход']
             .to_dict()
         )
 
@@ -499,3 +505,7 @@ class MeterReadingsCalculator(
     def _save_calculations_results_2_json(self, result: dict):
         with open(POWER_CALC_RESULT_FILE, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=4)
+
+    @staticmethod
+    def get_power_by_pole_key(pole: str, pu_number: str):
+        return f'{pole}__{pu_number}'
