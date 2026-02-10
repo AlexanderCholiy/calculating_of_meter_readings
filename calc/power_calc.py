@@ -1,14 +1,14 @@
 import json
 import os
 import time
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 
 from calc.constants import (
-    OUTPUT_CALC_FILE,
+    OUTPUT_POWER_CALC_FILE,
     ROUND_CALCULATION_DIGITS,
     POWER_CALC_RESULT_FILE,
     ArchiveFile,
@@ -29,7 +29,8 @@ from db.constants import (
 from db.reports.poles_report import PoleReport
 
 from .exceptions import ExcelSaveError, MissingColumnsError
-from .services.algoritm import Algoritm
+from .services.power_algoritms import Algoritm
+from core.utils import write_to_excel
 
 
 class MeterReadingsCalculator(
@@ -397,14 +398,10 @@ class MeterReadingsCalculator(
             if current_value is not None:
                 new_integral_readings.loc[
                     idx, self.CURRENT_READ_COL_IN_INTEGRAL_READINGS
-                ] = float(
-                    Decimal(current_value)
-                    .quantize(ROUND_CALCULATION_DIGITS, ROUND_HALF_UP)
-                )
+                ] = self.round_decimal(current_value)
 
-                calc_data.loc[idx, 'Расход'] = float(
-                    Decimal(current_value - prev_readings)
-                    .quantize(ROUND_CALCULATION_DIGITS, ROUND_HALF_UP)
+                calc_data.loc[idx, 'Расход'] = self.round_decimal(
+                    current_value - prev_readings
                 )
 
                 calc_data.loc[idx, self.algoritm_column_name] = algoritm_name
@@ -451,55 +448,41 @@ class MeterReadingsCalculator(
                 calc_data[col].astype('string')
             )
 
-        try:
-            with pd.ExcelWriter(
-                OUTPUT_CALC_FILE, engine='openpyxl', mode='w'
-            ) as writer:
-                # Основной лист с расчетами:
-                new_integral_readings.to_excel(
-                    writer, sheet_name='calc', index=False
-                )
+        to_excel_kwargs = {'index': False}
 
-                # Дополнительная информация:
-                keep_columns = [
-                    self.CODE_EO_COL_IN_INTEGRAL_READINGS,
-                    'pole',
-                    'pu_number',
-                    self.ASKUE_COL_IN_ARCHIVE,
-                    'Расход',
-                ]
+        write_to_excel(
+            OUTPUT_POWER_CALC_FILE,
+            'calc',
+            new_integral_readings,
+            **to_excel_kwargs
+        )
+        # Дополнительная информация:
+        keep_columns = [
+            self.CODE_EO_COL_IN_INTEGRAL_READINGS,
+            'pole',
+            'pu_number',
+            self.ASKUE_COL_IN_ARCHIVE,
+            'Расход',
+        ]
 
-                if self.EXTRA_COLUMNS:
-                    keep_columns.extend(self.EXTRA_COLUMNS)
+        if self.EXTRA_COLUMNS:
+            keep_columns.extend(self.EXTRA_COLUMNS)
 
-                if DEBUG:
-                    keep_columns.append(self.algoritm_column_name)
+        if DEBUG:
+            keep_columns.append(self.algoritm_column_name)
 
-                add_info = calc_data[
-                    [col for col in keep_columns if col in calc_data.columns]
-                ].copy()
+        add_info = calc_data[
+            [col for col in keep_columns if col in calc_data.columns]
+        ].copy()
 
-                add_info = add_info.rename(columns={
-                    'pu_number': 'Номер ПУ',
-                    'pole': 'Шифр опоры',
-                })
+        add_info = add_info.rename(columns={
+            'pu_number': 'Номер ПУ',
+            'pole': 'Шифр опоры',
+        })
 
-                add_info.to_excel(writer, sheet_name='add', index=False)
-
-                calc_logger.info(
-                    'Результаты расчета интегральных показаний сохранены в '
-                    f'{OUTPUT_CALC_FILE}'
-                )
-
-        except PermissionError:
-            raise ExcelSaveError(
-                file_path=OUTPUT_CALC_FILE,
-                message=(
-                    'Не удалось сохранить результаты дорасчёта в файл '
-                    f'{OUTPUT_CALC_FILE} '
-                    'Возможно, файл открыт в другой программе?'
-                )
-            )
+        write_to_excel(
+            OUTPUT_POWER_CALC_FILE, 'add', add_info, **to_excel_kwargs
+        )
 
     @retry(calc_logger, delay=30, exceptions=(PermissionError,))
     def _save_calculations_results_2_json(self, result: dict):
@@ -509,3 +492,21 @@ class MeterReadingsCalculator(
     @staticmethod
     def get_power_by_pole_key(pole: str, pu_number: str):
         return f'{pole}__{pu_number}'
+
+    @staticmethod
+    def round_decimal(v: float | None, digits: Optional[int] = None):
+        """
+        Округляет число до нужного количества знаков через Decimal.
+        Если значение None — возвращает pd.NA.
+        """
+        if v is None or pd.isna(v):
+            return pd.NA
+
+        quantize_str = (
+            ROUND_CALCULATION_DIGITS
+            if digits is None else Decimal(f'0.{"0" * digits}')
+        )
+
+        return float(Decimal(str(v)).quantize(
+            quantize_str, ROUND_HALF_UP)
+        )

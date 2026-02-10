@@ -11,6 +11,15 @@ IS_EXE = getattr(sys, 'frozen', False)
 
 GLOBAL_TIMEOUT = int(os.getenv('GLOBAL_TIMEOUT', 15 * 60))
 
+TRANSPOLATION_PROFILE_RESULT = os.getenv(
+    'TRANSPOLATION_PROFILE_RESULT', 'True'
+) == 'True'
+
+DEBUG_PROFILE_KEYS = [
+    val.strip() for val in os.getenv('DEBUG_PROFILE_KEYS', '').split(',')
+    if val.strip()
+]
+
 # Проверяем, запущен ли скрипт как exe:
 FILE_DIR = os.path.dirname(sys.executable) if IS_EXE else (
     os.path.dirname(os.path.abspath(__file__))

@@ -1,7 +1,7 @@
 import sys
 
 from calc.power_calc import MeterReadingsCalculator
-from core.constants import GLOBAL_TIMEOUT, IS_EXE
+from core.constants import GLOBAL_TIMEOUT, IS_EXE, TRANSPOLATION_PROFILE_RESULT, DEBUG_PROFILE_KEYS
 from core.logger import app_logger
 from core.wraps import timeout, timer, handle_exceptions
 from core.args_parser import arguments_parser
@@ -21,7 +21,7 @@ def run_power_calc():
 @handle_exceptions(app_logger)
 def run_power_profile_calc():
     calculator = PowerProfileCalc()
-    calculator.calculations()
+    calculator.calculations(TRANSPOLATION_PROFILE_RESULT, DEBUG_PROFILE_KEYS)
 
 
 if __name__ == '__main__':

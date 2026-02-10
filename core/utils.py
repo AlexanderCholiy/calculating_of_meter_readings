@@ -1,7 +1,11 @@
 from pathlib import Path
 import shutil
 
-from .logger import app_logger
+import pandas as pd
+from pandas import DataFrame
+
+from .logger import app_logger, calc_logger
+from calc.exceptions import ExcelSaveError
 
 
 def format_seconds(seconds: float) -> str:
@@ -66,3 +70,44 @@ def get_sorted_excel_files(
     files.sort(key=lambda x: x.name, reverse=reverse)
 
     return files
+
+
+def write_to_excel(
+    file_path: Path,
+    sheet_name: str,
+    df: DataFrame,
+    **to_excel_kwargs
+):
+    """
+    Универсальный внутренний метод для записи листа в Excel.
+    Автоматически определяет: создать новый файл или обновить лист в 
+    существующем.
+    """
+    try:
+        file_exists = file_path.exists()
+        mode = 'a' if file_exists else 'w'
+
+        writer_args = {'engine': 'openpyxl', 'mode': mode}
+
+        sheet_exists = False
+        if file_exists:
+            writer_args['if_sheet_exists'] = 'replace'
+            with pd.ExcelFile(file_path, engine='openpyxl') as reader:
+                sheet_exists = sheet_name in reader.sheet_names
+
+        with pd.ExcelWriter(file_path, **writer_args) as writer:
+            df.to_excel(writer, sheet_name=sheet_name, **to_excel_kwargs)
+
+        action = 'обновлен' if sheet_exists else 'добавлен'
+        if not file_exists:
+            action = 'создан'
+
+        calc_logger.info(
+            f'Лист "{sheet_name}" успешно {action} в файле {file_path.name}'
+        )
+
+    except PermissionError:
+        raise ExcelSaveError(
+            file_path=file_path,
+            message=f'Файл {file_path.name} открыт в другой программе.'
+        )

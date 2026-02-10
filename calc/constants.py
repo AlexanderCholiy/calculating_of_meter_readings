@@ -10,7 +10,13 @@ from core.constants import DATA_DIR, TMP_DIR
 
 load_dotenv(override=True)
 
-OUTPUT_CALC_FILE = os.path.join(DATA_DIR, 'calculation_results.xlsx')
+OUTPUT_POWER_CALC_FILE = Path(
+    os.path.join(DATA_DIR, 'power_calc.xlsx')
+)
+
+OUTPUT_POWER_PROFILE_CALC_FILE = Path(
+    os.path.join(DATA_DIR, 'power_profile_calc.xlsx')
+)
 
 POWER_CALC_RESULT_FILE = Path(
     os.path.join(TMP_DIR, '__power_calc_result.json')
@@ -112,7 +118,8 @@ class PowerProfileFile:
     USE_BY_METER_COL_IN_POWER_PROFILE = 'Потребление за период по показаниям'
     USE_BY_PROFILE_COL_IN_POWER_PROFILE = 'Потребление за период по профилю'
 
+    DIF_COL_IN_POWER_PROFILE = 'Разница'
+
     DATETIME_FORMAT_POWER_PROFILE = '%d.%m.%Y %H:%M'
 
-
-PROFILE_SUMPLES_NUMBERS = 100
+    PROFILE_SUMPLES_NUMBERS = 100
