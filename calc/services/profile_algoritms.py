@@ -48,7 +48,10 @@ class ProfileAlgoritm:
             else self.scale_to_area(y_interp, total_power)
         )
 
-        return y_scaled
+        # Защита от неудачного масштабирования:
+        result = np.clip(y_scaled, 0, None)
+
+        return result
 
     def stretch_algoritm(
         self,
@@ -63,7 +66,10 @@ class ProfileAlgoritm:
             else self.scale_to_area(y_interp, total_power)
         )
 
-        return y_scaled
+        # Защита от неудачного масштабирования:
+        result = np.clip(y_scaled, 0, None)
+
+        return result
 
     def mixed_fill_algoritm(
         self,
@@ -79,7 +85,10 @@ class ProfileAlgoritm:
             else self.scale_to_area(y_interp, total_power)
         )
 
-        return y_scaled
+        # Защита от неудачного масштабирования:
+        result = np.clip(y_scaled, 0, None)
+
+        return result
 
     @staticmethod
     def datetime_to_seconds(x: list[datetime]) -> np.ndarray:
@@ -260,7 +269,7 @@ class ProfileAlgoritm:
     def scale_restored_only(
         y_original: np.ndarray,
         y_filled: np.ndarray,
-        target_area: float
+        target_area: float,
     ) -> np.ndarray:
         """
         Масштабирует ТОЛЬКО восстановленные точки (которые были NaN в

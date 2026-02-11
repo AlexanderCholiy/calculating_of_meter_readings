@@ -293,8 +293,8 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             'stretch_edges': {
                 'count': 0,
                 'condition': (
-                    'Заполнены части точек, методом растяжения известных '
-                    'значений'
+                    'Заполнены части точек, восстанавливаем данные методом '
+                    'растяжения известных значений'
                 )
             },
             'mixed_fill': {

@@ -79,8 +79,6 @@ class EmailParser(EmailParserManager, EmailValidator):
             if not total:
                 raise EmptyEmailSelect(search_query)
 
-            raise
-
             for index, (msg, _) in enumerate(parsed_messages):
                 PrettyPrint.progress_bar_warning(
                     index, total,
