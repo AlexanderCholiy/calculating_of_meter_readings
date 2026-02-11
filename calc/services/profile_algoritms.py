@@ -11,6 +11,19 @@ class ProfileAlgoritm:
         super().__init__(**kwargs)
         self.scale_restored_only_val = scale_restored_only_val
 
+    def _finalize_processing(
+        self, y: np.ndarray, y_interp: np.ndarray, total_power: float
+    ) -> np.ndarray:
+        y_interp = np.clip(y_interp, 0, None)
+
+        y_scaled = (
+            self.scale_restored_only(y, y_interp, total_power)
+            if self.scale_restored_only_val
+            else self.scale_to_area(y_interp, total_power)
+        )
+
+        return np.clip(y_scaled, 0, None)
+
     def full_empty_algoritm(
         self,
         good_profiles: dict[float, np.ndarray],
@@ -41,17 +54,7 @@ class ProfileAlgoritm:
         total_power: float,
     ) -> np.ndarray:
         y_interp = self.interpolate_inside(x, y)
-        y_interp = np.clip(y_interp, 0, None)
-        y_scaled = (
-            self.scale_restored_only(y, y_interp, total_power)
-            if self.scale_restored_only_val
-            else self.scale_to_area(y_interp, total_power)
-        )
-
-        # Защита от неудачного масштабирования:
-        result = np.clip(y_scaled, 0, None)
-
-        return result
+        return self._finalize_processing(y, y_interp, total_power)
 
     def stretch_algoritm(
         self,
@@ -59,17 +62,7 @@ class ProfileAlgoritm:
         total_power: float,
     ) -> np.ndarray:
         y_interp = self.stretch_known_fill_nans(y)
-        y_interp = np.clip(y_interp, 0, None)
-        y_scaled = (
-            self.scale_restored_only(y, y_interp, total_power)
-            if self.scale_restored_only_val
-            else self.scale_to_area(y_interp, total_power)
-        )
-
-        # Защита от неудачного масштабирования:
-        result = np.clip(y_scaled, 0, None)
-
-        return result
+        return self._finalize_processing(y, y_interp, total_power)
 
     def mixed_fill_algoritm(
         self,
@@ -78,17 +71,7 @@ class ProfileAlgoritm:
         total_power: float,
     ) -> np.ndarray:
         y_interp = self.mixed_fill(x, y)
-        y_interp = np.clip(y_interp, 0, None)
-        y_scaled = (
-            self.scale_restored_only(y, y_interp, total_power)
-            if self.scale_restored_only_val
-            else self.scale_to_area(y_interp, total_power)
-        )
-
-        # Защита от неудачного масштабирования:
-        result = np.clip(y_scaled, 0, None)
-
-        return result
+        return self._finalize_processing(y, y_interp, total_power)
 
     @staticmethod
     def datetime_to_seconds(x: list[datetime]) -> np.ndarray:
