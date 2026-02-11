@@ -1,7 +1,7 @@
 import os
-from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Optional, TypedDict
 
 from dotenv import load_dotenv
@@ -22,7 +22,7 @@ POWER_CALC_RESULT_FILE = Path(
     os.path.join(TMP_DIR, '__power_calc_result.json')
 )
 
-POWER_CALC_RESULT_TTL = 10 * 60 * 1000000000000000000000000000000000000000000000000 
+POWER_CALC_RESULT_TTL = 10 * 60
 
 AVG_EXP = float(os.getenv('AVG_EXP', 1200))
 
@@ -123,3 +123,4 @@ class PowerProfileFile:
     DATETIME_FORMAT_POWER_PROFILE = '%d.%m.%Y %H:%M'
 
     PROFILE_SUMPLES_NUMBERS = 100
+    MIN_KNOWN_POINTS_FRACTION = 0.1  # % от всех точек

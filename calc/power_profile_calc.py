@@ -1,45 +1,47 @@
-import time
 import json
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, TypedDict
+
+import numpy as np
 import pandas as pd
 from pandas import DataFrame
-from typing import Optional
-from pathlib import Path
-from datetime import datetime
-from decimal import ROUND_HALF_UP, Decimal
-import numpy as np
 
-from .power_calc import MeterReadingsCalculator
-from .constants import POWER_CALC_RESULT_FILE, POWER_CALC_RESULT_TTL, OUTPUT_POWER_PROFILE_CALC_FILE, ROUND_CALCULATION_DIGITS
-from core.pretty_print import PrettyPrint
-from core.logger import calc_logger
-from mail.constants import EMAIL_DIR, FILENAME_DATETIME_PREFIX
 from core.constants import DEBUG
-
-from mail.email_parser import email_parser, email_config
-from .exceptions import EmptyPowerProfile
-from core.utils import get_sorted_excel_files
-from .power_calc import MeterReadingsCalculator
-from .constants import PowerProfileFile
-from .services.profile_algoritms import ProfileAlgoritm
-from .exceptions import ExcelSaveError
+from core.logger import calc_logger
+from core.pretty_print import PrettyPrint
+from core.utils import clear_folder, get_sorted_excel_files, write_to_excel
 from core.wraps import retry
-from core.utils import write_to_excel
+from mail.constants import EMAIL_DIR
+from mail.email_parser import email_config, email_parser
 
-from typing import TypedDict
+from .constants import (
+    OUTPUT_POWER_PROFILE_CALC_FILE,
+    POWER_CALC_RESULT_FILE,
+    POWER_CALC_RESULT_TTL,
+    PowerProfileFile
+)
+from .exceptions import EmptyPowerProfile, ExcelSaveError
+from .power_calc import MeterReadingsCalculator
+from .services.profile_algoritms import ProfileAlgoritm
 
 
 class DebugProfile(TypedDict):
     algoritm: str
     date: list[datetime]
-    original_profile: list[Optional[float]]
-    restored_profile: list[float]
+    original_profile: np.ndarray
+    restored_profile: np.ndarray
 
 
 class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
     algoritm_column_name = 'Алгоритм'
 
-    def __init__(self):
+    _round_profile_key_digits: int = 2
+
+    def __init__(self, scale_restored_only_val: bool = True, **kwargs):
+        super().__init__(scale_restored_only_val, **kwargs)
         self._power_by_pole: dict[str, float] | None = None
 
     @property
@@ -77,13 +79,37 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
             return self._power_by_pole
 
+    def _get_debug_profiles_keys(self) -> set[str]:
+        keys = []
+        df = pd.read_excel(OUTPUT_POWER_PROFILE_CALC_FILE, 'graph')
+
+        for row in df.itertuples(index=False):
+            pole = row.pole
+            pu_number = row.pu_number
+
+            pole_val: Optional[str] = (
+                str(pole).strip() if not pd.isna(pole) else None
+            )
+            pu_number_val: Optional[str] = (
+                str(pu_number).strip() if not pd.isna(pu_number) else None
+            )
+
+            if pole_val and pu_number_val:
+                key = (
+                    MeterReadingsCalculator
+                    .get_power_by_pole_key(pole_val, pu_number_val)
+                )
+                keys.append(key)
+
+        return set(keys)
+
     def _get_date_columns(self, df: DataFrame) -> list[str]:
         date_columns = []
 
         for col in df.columns:
             parsed_date = pd.to_datetime(
                 str(col),
-                format=self.DATETIME_FORMAT_POWER_PROFILE, 
+                format=self.DATETIME_FORMAT_POWER_PROFILE,
                 errors='coerce'
             )
 
@@ -158,33 +184,37 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
         return df
 
+    def _get_default_profile_key(self, power: float) -> float:
+        """Безопасный ключ из float с защитой точности."""
+        return round(power, self._round_profile_key_digits)
+
     def get_default_profiles(
         self, df: DataFrame
-    ) -> dict[float, list[float]]:
+    ) -> dict[float, np.ndarray]:
         date_columns = self._get_date_columns(df)
         date_indices = [df.columns.get_loc(col) for col in date_columns]
 
-        good_profiles: dict[float, list[float]] = {}
+        good_profiles: dict[float, np.ndarray] = {}
 
         for row in df.itertuples(index=False):
-            y_vars = [
-                row[i] if not pd.isna(row[i]) else None for i in date_indices
-            ]
+            y_vars = np.array(
+                [row[j] for j in date_indices], dtype=float
+            )
             use_by_readings = row.use_by_readings
             use_by_profile = row.use_by_profile
 
             if (
                 pd.notna(use_by_readings)
                 and pd.notna(use_by_profile)
-                and None not in y_vars
+                and not np.isnan(y_vars).any()
+                and (y_vars > 0).all()
                 and abs(use_by_readings - use_by_profile) <= 0.01
                 and use_by_readings > 0
                 and use_by_profile > 0
             ):
-                if use_by_readings not in good_profiles:
-                    all_positive = all(v is not None and v > 0 for v in y_vars)
-                    if all_positive:
-                        good_profiles[use_by_readings] = y_vars
+                key = self._get_default_profile_key(use_by_readings)
+                if key not in good_profiles:
+                    good_profiles[key] = y_vars
                 if len(good_profiles) >= self.PROFILE_SUMPLES_NUMBERS:
                     break
 
@@ -197,14 +227,14 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
         return good_profiles
 
-    def calculations(
-        self, transpolation: bool = True, debug_profile_keys: list[str] = []
-    ):
-        # email_parser.parser(
-        #     subject=email_config['EMAIL_SUBJECT'],
-        #     days_before=email_config['EMAIL_DAYS_BEFORE'],
-        #     sender_email=email_config['EMAIL_SENDER'],
-        # )
+    def calculations(self, transpolation: bool = True):
+        clear_folder(EMAIL_DIR)
+
+        email_parser.parser(
+            subject=email_config['EMAIL_SUBJECT'],
+            days_before=email_config['EMAIL_DAYS_BEFORE'],
+            sender_email=email_config['EMAIL_SENDER'],
+        )
 
         power_map = self.power_by_pole
 
@@ -235,11 +265,12 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
         good_profiles = self.get_default_profiles(calc_data)
         good_profile_keys = list(good_profiles.keys())
 
-        x_vars = [
+        x_dt = [
             datetime.strptime(
                 var, self.DATETIME_FORMAT_POWER_PROFILE
             ) for var in date_columns.copy()
         ]
+        x_vars = self.datetime_to_seconds(x_dt)
 
         meta = {
             'full_filed': {
@@ -259,15 +290,19 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                     'Заполнены не все точки, выполняем сплайн интерполяцию'
                 )
             },
-            'extrapolate_edges': {
+            'stretch_edges': {
                 'count': 0,
                 'condition': (
-                    'Заполнены части точек, экстаполяция сплайном за границы'
+                    'Заполнены части точек, методом растяжения известных '
+                    'значений'
                 )
             },
             'mixed_fill': {
                 'count': 0,
-                'condition': 'Смешанное восстановление пропусков сплайном'
+                'condition': (
+                    'Смешанное восстановление пропусков методами '
+                    'interpolate_inside и stretch_edges'
+                )
             },
             'unknown_case': {
                 'count': 0,
@@ -289,6 +324,12 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
         poles_res = []
 
         debug_profiles: dict[str, DebugProfile] = {}
+        debug_profile_keys = (
+            self._get_debug_profiles_keys() if DEBUG else set()
+        )
+        min_known_points_for_processing_full_empty = max(
+            3, int(len(x_dt) * self.MIN_KNOWN_POINTS_FRACTION)
+        )
 
         for i, row in enumerate(calc_data.itertuples(index=False)):
             PrettyPrint.progress_bar_info(
@@ -301,13 +342,13 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
             pu_number = row.pu_number
 
-            y_vars = [
-                None if pd.isna(v) else (0 if v == 0 else v)
-                for v in (row[j] for j in date_indices)
-            ]
+            y_vars = np.array(
+                [row[j] for j in date_indices],
+                dtype=float
+            )
             y_vars_original = y_vars.copy()
 
-            mask = np.array([v is None for v in y_vars])
+            mask = np.isnan(y_vars)
 
             power_key = MeterReadingsCalculator.get_power_by_pole_key(
                 pole, pu_number
@@ -319,10 +360,10 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
             if not pd.isna(row.use_by_profile) and row.use_by_profile > 0:
                 total_power = row.use_by_profile
-            elif not pd.isna(row.use_by_readings) and row.use_by_readings > 0:
-                total_power = row.use_by_readings
             elif power_map_value and power_map_value > 0:
                 total_power = power_map_value
+            elif not pd.isna(row.use_by_readings) and row.use_by_readings > 0:
+                total_power = row.use_by_readings
 
             if pd.isna(pu_number) or not pole:
                 algoritm_name = 'unvalid_case'
@@ -332,6 +373,15 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             elif not mask.any():
                 algoritm_name = 'full_filed'
                 meta[algoritm_name]['count'] += 1
+                is_not_all_zero = (y_vars > 0).all()
+
+                if (
+                    not self.scale_restored_only_val
+                    and not pd.isna(total_power)
+                    and total_power > 0
+                    and is_not_all_zero
+                ):
+                    y_vars = self.scale_to_area(y_vars, total_power)
 
                 if (
                     not pd.isna(row.use_by_readings)
@@ -339,20 +389,16 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                     and abs(
                         row.use_by_readings - row.use_by_profile
                     ) <= 0.01
+                    and is_not_all_zero
                     and row.use_by_readings > 0
                     and row.use_by_profile > 0
                 ):
-                    if row.use_by_readings not in good_profiles:
-                        all_positive = all(
-                            v is not None and v > 0 for v in y_vars
-                        )
-                        if all_positive:
-                            good_profiles[row.use_by_readings] = y_vars
-                            good_profile_keys.append(row.use_by_readings)
+                    key = self._get_default_profile_key(row.use_by_readings)
+                    if key not in good_profiles:
+                        good_profiles[key] = y_vars
+                        good_profile_keys.append(key)
 
             elif not pd.isna(total_power) and total_power > 0:
-                mask = np.array([v is None for v in y_vars])
-
                 first_valid = np.argmax(~mask)
                 last_valid = len(mask) - np.argmax(~mask[::-1]) - 1
 
@@ -360,7 +406,12 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                 has_right_gap = last_valid < len(mask) - 1
                 has_inside_gap = mask[first_valid:last_valid + 1].any()
 
-                if set(y_vars) == {None}:
+                if (
+                    not np.isfinite(y_vars).any()
+                    or np.count_nonzero(np.isfinite(y_vars)) < (
+                        min_known_points_for_processing_full_empty
+                    )
+                ):
                     y_vars = self.full_empty_algoritm(
                         good_profiles, good_profile_keys, total_power
                     )
@@ -373,10 +424,8 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                     algoritm_name = 'interpolate_inside'
                     meta[algoritm_name]['count'] += 1
                 elif (has_left_gap or has_right_gap) and not has_inside_gap:
-                    y_vars = self.extrapolate_edges_algoritm(
-                        x_vars, y_vars, total_power
-                    )
-                    algoritm_name = 'extrapolate_edges'
+                    y_vars = self.stretch_algoritm(y_vars, total_power)
+                    algoritm_name = 'stretch_edges'
                     meta[algoritm_name]['count'] += 1
                 else:
                     y_vars = self.mixed_fill_algoritm(
@@ -390,21 +439,21 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                 meta[algoritm_name]['count'] += 1
 
             use_by_readings = (
-                sum(y_vars) if None not in y_vars else row.use_by_readings
+                y_vars.sum()
+                if np.isfinite(y_vars).any() else row.use_by_readings
             )
             use_by_profile = total_power
 
             # округление и нормализация значений дат
-            round_y_vars = (
-                [MeterReadingsCalculator.round_decimal(v, 5) for v in y_vars]
-                if algoritm_name in (
-                    'full_empty',
-                    'interpolate_insid',
-                    'extrapolate_edges',
-                    'mixed_fill',
-                )
-                else [MeterReadingsCalculator.round_decimal(v) for v in y_vars]
-            )
+            if algoritm_name in (
+                'full_empty',
+                'interpolate_insid',
+                'stretch_edges',
+                'mixed_fill',
+            ):
+                round_y_vars = np.round(y_vars, 5)
+            else:
+                round_y_vars = np.round(y_vars, 3)
 
             date_values_res.append(round_y_vars)
 
@@ -435,7 +484,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             if power_key in debug_profile_keys:
                 debug_profiles[power_key] = {
                     'algoritm': algoritm_name,
-                    'date': x_vars,
+                    'date': x_dt,
                     'original_profile': y_vars_original,
                     'restored_profile': y_vars,
                 }

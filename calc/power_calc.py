@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional, Union
 
 import numpy as np
@@ -9,8 +9,8 @@ import pandas as pd
 
 from calc.constants import (
     OUTPUT_POWER_CALC_FILE,
-    ROUND_CALCULATION_DIGITS,
     POWER_CALC_RESULT_FILE,
+    ROUND_CALCULATION_DIGITS,
     ArchiveFile,
     IntegralReadingFile,
     PeriodReadingData,
@@ -19,6 +19,7 @@ from calc.constants import (
 from core.constants import DEBUG
 from core.logger import calc_logger
 from core.pretty_print import PrettyPrint
+from core.utils import write_to_excel
 from core.wraps import retry
 from db.connection import TSSessionLocal
 from db.constants import (
@@ -30,7 +31,6 @@ from db.reports.poles_report import PoleReport
 
 from .exceptions import ExcelSaveError, MissingColumnsError
 from .services.power_algoritms import Algoritm
-from core.utils import write_to_excel
 
 
 class MeterReadingsCalculator(

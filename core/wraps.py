@@ -5,8 +5,8 @@ from datetime import datetime
 from logging import Logger
 from typing import Callable
 
-from .utils import format_seconds
 from .constants import IS_EXE
+from .utils import format_seconds
 
 
 def timer(logger: Logger, is_debug: bool = True) -> Callable:

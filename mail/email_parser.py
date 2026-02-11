@@ -1,23 +1,19 @@
-import email
-import imaplib
-
-from imaplib import IMAP4, IMAP4_SSL
-from email import message
+import os
+from datetime import datetime, timedelta
 from email import header
+from imaplib import IMAP4_SSL
 from typing import Optional
 
-import os
-
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
-from core.pretty_print import PrettyPrint
 
 from core.config import Config
 from core.logger import email_logger
+from core.pretty_print import PrettyPrint
+
+from .constants import FILENAME_DATETIME_PREFIX
+from .exceptions import EmptyEmailSelect
 from .utils import EmailParserManager
 from .validators import EmailValidator
-from .constants import FILENAME_DATETIME_PREFIX, EMAIL_DIR
-from core.utils import clear_folder
 
 load_dotenv(override=True)
 
@@ -78,9 +74,12 @@ class EmailParser(EmailParserManager, EmailValidator):
             messages = self._fetch_emails_in_chunks(mail, msg_ids)
             parsed_messages = self._parse_raw_messages(messages)
 
-            clear_folder(EMAIL_DIR)
-
             total = len(parsed_messages)
+
+            if not total:
+                raise EmptyEmailSelect(search_query)
+
+            raise
 
             for index, (msg, _) in enumerate(parsed_messages):
                 PrettyPrint.progress_bar_warning(

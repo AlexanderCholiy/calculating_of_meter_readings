@@ -1,20 +1,22 @@
 import random
-import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from typing import Optional
-from scipy.interpolate import CubicSpline, PchipInterpolator
-from math import sin, pi
+import numpy as np
+from scipy.interpolate import PchipInterpolator
 
 
 class ProfileAlgoritm:
 
+    def __init__(self, scale_restored_only_val: bool, **kwargs):
+        super().__init__(**kwargs)
+        self.scale_restored_only_val = scale_restored_only_val
+
     def full_empty_algoritm(
         self,
-        good_profiles: dict[float, list[float]],
+        good_profiles: dict[float, np.ndarray],
         good_profile_keys: list[float],
         total_power: float,
-    ) -> list[float]:
+    ) -> np.ndarray:
         """
         Полностью отсутствуют данные за период.
         Генерирует профиль на основе одного из эталонных профилей,
@@ -30,56 +32,54 @@ class ProfileAlgoritm:
             # если площадь равна 0, возвращаем нули
             scaled_profile = np.zeros(len(random_sample), dtype=float)
 
-        return scaled_profile.tolist()
+        return scaled_profile
 
     def interpolate_inside_algoritm(
         self,
-        x_dt: list[datetime],
-        y: list[Optional[float]],
+        x: np.ndarray,
+        y: np.ndarray,
         total_power: float,
-    ) -> list[float]:
-        y_interp = np.asarray(
-            self.interpolate_inside(x_dt, y),
-            dtype=float
-        )
-        y_interp = self.scale_to_area(y_interp, total_power)
-
+    ) -> np.ndarray:
+        y_interp = self.interpolate_inside(x, y)
         y_interp = np.clip(y_interp, 0, None)
+        y_scaled = (
+            self.scale_restored_only(y, y_interp, total_power)
+            if self.scale_restored_only_val
+            else self.scale_to_area(y_interp, total_power)
+        )
 
-        return y_interp.tolist()
+        return y_scaled
 
-    def extrapolate_edges_algoritm(
+    def stretch_algoritm(
         self,
-        x_dt: list[datetime],
-        y: list[Optional[float]],
+        y: np.ndarray,
         total_power: float,
-    ) -> list[float]:
-        y_interp = np.asarray(
-            self.extrapolate_edges(x_dt, y),
-            dtype=float
+    ) -> np.ndarray:
+        y_interp = self.stretch_known_fill_nans(y)
+        y_interp = np.clip(y_interp, 0, None)
+        y_scaled = (
+            self.scale_restored_only(y, y_interp, total_power)
+            if self.scale_restored_only_val
+            else self.scale_to_area(y_interp, total_power)
         )
 
-        y_interp = np.clip(y_interp, 0, None)
-
-        y_interp = self.scale_to_area(y_interp, total_power)
-
-        return y_interp.tolist()
+        return y_scaled
 
     def mixed_fill_algoritm(
         self,
-        x_dt: list[datetime],
-        y: list[Optional[float]],
+        x: np.ndarray,
+        y: np.ndarray,
         total_power: float,
-    ) -> list[float]:
-        y_interp = np.asarray(
-            self.mixed_fill(x_dt, y),
-            dtype=float,
-        )
-        y_interp = self.scale_to_area(y_interp, total_power)
-
+    ) -> np.ndarray:
+        y_interp = self.mixed_fill(x, y)
         y_interp = np.clip(y_interp, 0, None)
+        y_scaled = (
+            self.scale_restored_only(y, y_interp, total_power)
+            if self.scale_restored_only_val
+            else self.scale_to_area(y_interp, total_power)
+        )
 
-        return y_interp.tolist()
+        return y_scaled
 
     @staticmethod
     def datetime_to_seconds(x: list[datetime]) -> np.ndarray:
@@ -87,12 +87,7 @@ class ProfileAlgoritm:
         return np.array([(dt - t0).total_seconds() for dt in x])
 
     @staticmethod
-    def interpolate_inside(
-        x_dt: list[datetime], y: list[Optional[float]]
-    ) -> list[float]:
-        x = ProfileAlgoritm.datetime_to_seconds(x_dt)
-        y = np.asarray(y, dtype=float)
-
+    def interpolate_inside(x: np.ndarray, y: np.ndarray) -> np.ndarray:
         mask = ~np.isnan(y)
         valid_count = mask.sum()
 
@@ -100,155 +95,158 @@ class ProfileAlgoritm:
             raise ValueError('Нет опорных точек для интерполяции')
 
         if valid_count == 1:
-            return np.full(len(y), y[mask][0]).tolist()
+            return np.full(len(y), y[mask][0], dtype=float)
 
         if valid_count == 2:
-            y_interp = np.interp(x, x[mask], y[mask])
-            return y_interp.tolist()
+            return np.interp(x, x[mask], y[mask])
 
-        spline = CubicSpline(
-            x[mask],
-            y[mask],
-            extrapolate=False
-        )
+        # защита от нуля и отрицательных значений
+        eps = 1e-9
+        y_safe = np.maximum(y[mask], eps)
 
-        y_interp = spline(x)
+        # логарифмируем
+        log_y = np.log(y_safe)
 
-        # страховка — если вдруг появились NaN внутри диапазона
-        nan_mask = np.isnan(y_interp)
-        if nan_mask.any():
-            y_interp[nan_mask] = np.interp(
-                x[nan_mask],
-                x[~nan_mask],
-                y_interp[~nan_mask],
-            )
+        # строим монотонный сплайн в лог-пространстве
+        spline = PchipInterpolator(x[mask], log_y, extrapolate=False)
 
-        return y_interp.tolist()
+        # интерполируем
+        log_y_interp = spline(x)
 
-    @staticmethod
-    def extrapolate_edges(
-        x_dt: list[datetime],
-        y: list[Optional[float]],
-        edge_points: int = 3,
-        max_slope: float = 0.1,
-    ):
-        """
-        Экстраполяция профиля мощности без NaN с автоматическим определением
-        предыдущего периода (от первой до последней известной точки)
-        """
+        # возвращаемся из лог-пространства
+        y_interp = np.exp(log_y_interp)
 
-        x = ProfileAlgoritm.datetime_to_seconds(x_dt)
-        y = np.array([v if v is not None else np.nan for v in y], dtype=float)
-
-        mask = ~np.isnan(y)
-        if mask.sum() < 2:
-            raise ValueError("Недостаточно опорных точек")
-
-        xk = x[mask]
-        yk = y[mask]
-
-        # 1. PCHIP внутри известных точек
-        pchip = PchipInterpolator(xk, yk, extrapolate=False)
-        result = pchip(x)
-
-        mean_profile = np.nanmean(yk)
-
-        # 2. Левый край
-        left_mask = x < xk[0]
-        if left_mask.any():
-            x_left = xk[:edge_points]
-            y_left = yk[:edge_points]
-            slope_left = np.polyfit(x_left, y_left, 1)[0]
-            slope_left = np.clip(slope_left, -max_slope, max_slope)
-            result[left_mask] = yk[0] + slope_left * (x[left_mask] - xk[0])
-            decay_left = np.exp(-np.linspace(0, 3, left_mask.sum()))
-            result[left_mask] = mean_profile + decay_left * (result[left_mask] - mean_profile)
-
-        # 3. Правый край
-        right_mask = x > xk[-1]
-        if right_mask.any():
-            x_right = xk[-edge_points:]
-            y_right = yk[-edge_points:]
-            slope_right = np.polyfit(x_right, y_right, 1)[0]
-            slope_right = np.clip(slope_right, -max_slope, max_slope)
-            result[right_mask] = yk[-1] + slope_right * (x[right_mask] - xk[-1])
-            decay_right = np.exp(-np.linspace(0, 3, right_mask.sum()))
-            result[right_mask] = mean_profile + decay_right * (result[right_mask] - mean_profile)
-
-        # 4. Автоматический предыдущий период
-        try:
-            # период = длина между первой и последней известной точкой
-            period_seconds = xk[-1] - xk[0]
-            prev_dt = [dt - timedelta(seconds=period_seconds) for dt in x_dt]
-            prev_seconds = ProfileAlgoritm.datetime_to_seconds(prev_dt)
-
-            prev_left_mask = prev_seconds < xk[0]
-            prev_right_mask = prev_seconds > xk[-1]
-
-            if prev_left_mask.any():
-                result[left_mask] = 0.5 * (result[left_mask] + y[prev_left_mask])
-            if prev_right_mask.any():
-                result[right_mask] = 0.5 * (result[right_mask] + y[prev_right_mask])
-        except Exception:
-            pass
-
-        # 5. Любые оставшиеся NaN заменяем на среднее известных точек
-        nan_mask = np.isnan(result)
-        if nan_mask.any():
-            result[nan_mask] = mean_profile
-
-        return result
-
-    @staticmethod
-    def mixed_fill(x_dt: list[datetime], y: list[Optional[float]]):
-        x = ProfileAlgoritm.datetime_to_seconds(x_dt)
-        y = np.asarray(y, dtype=float)
-
-        mask = ~np.isnan(y)
-        valid_count = mask.sum()
-
-        if valid_count == 0:
-            raise ValueError('Все значения отсутствуют')
-
-        if valid_count == 1:
-            return np.full(len(y), y[mask][0])
-
-        x_known = x[mask]
-        y_known = y[mask]
-
-        if valid_count == 2:
-            return np.interp(
-                x,
-                x_known,
-                y_known,
-                left=None,
-                right=None
-            )
-
-        spline = CubicSpline(
-            x_known,
-            y_known,
-            extrapolate=True
-        )
-
-        y_filled = spline(x)
-
-        nan_mask = np.isnan(y_filled)
-        if nan_mask.any():
-            y_filled[nan_mask] = np.interp(
-                x[nan_mask],
-                x[~nan_mask],
-                y_filled[~nan_mask],
-            )
+        # заменяем только NaN
+        y_filled = y.copy()
+        y_filled[np.isnan(y_filled)] = y_interp[np.isnan(y_filled)]
 
         return y_filled
 
     @staticmethod
-    def scale_to_area(
-        y: list[Optional[float]], target_area: float
-    ) -> np.ndarray:
-        y = np.asarray(y, dtype=float)
+    def stretch_inside_fill_nans(y: np.ndarray) -> np.ndarray:
+        """
+        Заполняет только ВНУТРЕННИЕ NaN методом равномерного растяжения
+        известных значений внутри диапазона между первой и последней
+        известной точкой.
 
+        Краевые NaN не изменяются.
+        Исходные известные значения сохраняются.
+        """
+        known_mask = ~np.isnan(y)
+
+        if not known_mask.any():
+            raise ValueError("Нет известных точек для заполнения")
+
+        known_indices = np.where(known_mask)[0]
+        first_idx = known_indices[0]
+        last_idx = known_indices[-1]
+
+        # Если нет внутренней области — ничего не делаем
+        if last_idx - first_idx < 2:
+            return y.copy()
+
+        y_result = y.copy()
+
+        # Внутренний сегмент
+        inner_slice = slice(first_idx, last_idx + 1)
+        y_inner = y[inner_slice]
+
+        inner_known_mask = ~np.isnan(y_inner)
+        inner_nan_mask = np.isnan(y_inner)
+
+        known_y = y_inner[inner_known_mask]
+
+        # Растягиваем только внутри сегмента
+        stretched_inner = np.interp(
+            np.arange(len(y_inner)),
+            np.linspace(0, len(y_inner) - 1, num=len(known_y)),
+            known_y
+        )
+
+        # Заполняем только внутренние NaN
+        y_inner[inner_nan_mask] = stretched_inner[inner_nan_mask]
+
+        y_result[inner_slice] = y_inner
+
+        return y_result
+
+    @staticmethod
+    def stretch_known_fill_nans(y: np.ndarray) -> np.ndarray:
+        """
+        Заполняет пропущенные значения (NaN) в массиве y методом растяжения
+        известных значений.
+        """
+        y = np.array(y, dtype=float)
+
+        # Индексы известных и NaN точек
+        known_mask = ~np.isnan(y)
+        nan_mask = np.isnan(y)
+
+        # Берём только известные значения
+        known_y = y[known_mask]
+
+        # Растягиваем их на весь профиль равномерно
+        stretched_y = np.interp(
+            np.arange(len(y)),
+            np.linspace(0, len(y) - 1, num=len(known_y)),
+            known_y
+        )
+
+        # Вставляем значения только в те места, где был NaN
+        y[nan_mask] = stretched_y[nan_mask]
+
+        return y
+
+    @staticmethod
+    def mixed_fill(x: np.ndarray, y: np.ndarray):
+        """
+        Комбинированное заполнение пропусков (NaN):
+
+        - Внутренние NaN (между первой и последней известной точкой)
+        заполняются методом interpolate_inside (PCHIP).
+        - Краевые NaN (слева и справа от известной области)
+        заполняются методом stretch_known_fill_nans.
+
+        Исходные известные значения не изменяются.
+        """
+        y = np.array(y, dtype=float)
+        mask = ~np.isnan(y)
+
+        valid_count = mask.sum()
+        if valid_count == 0:
+            raise ValueError('Нет известных точек для заполнения')
+
+        if valid_count == 1:
+            return np.full(len(y), y[mask][0], dtype=float)
+
+        first_idx = np.where(mask)[0][0]
+        last_idx = np.where(mask)[0][-1]
+
+        y_result = y.copy()
+
+        # ---- 1. Внутренняя интерполяция ----
+        if last_idx - first_idx > 1:
+            # Берём только внутренний диапазон
+            x_inner = x[first_idx:last_idx + 1]
+            y_inner = y[first_idx:last_idx + 1]
+
+            y_inner_filled = ProfileAlgoritm.interpolate_inside(
+                x_inner, y_inner
+            )
+            y_result[first_idx:last_idx + 1] = y_inner_filled
+
+        # ---- 2. Краевая "растяжка" ----
+        if first_idx > 0 or last_idx < len(y) - 1:
+            y_stretched = ProfileAlgoritm.stretch_known_fill_nans(y)
+            edge_mask = np.isnan(y)
+            y_result[edge_mask] = y_stretched[edge_mask]
+
+        return y_result
+
+    @staticmethod
+    def scale_to_area(
+        y: np.ndarray, target_area: float
+    ) -> np.ndarray:
         current_area = y.sum()
 
         if current_area == 0:
@@ -257,3 +255,33 @@ class ProfileAlgoritm:
         factor = target_area / current_area
 
         return y * factor
+
+    @staticmethod
+    def scale_restored_only(
+        y_original: np.ndarray,
+        y_filled: np.ndarray,
+        target_area: float
+    ) -> np.ndarray:
+        """
+        Масштабирует ТОЛЬКО восстановленные точки (которые были NaN в
+        оригинале), не изменяя исходные известные значения.
+
+        НЕ гарантирует, что итоговая сумма будет равна target_area.
+        """
+        mask_known = ~np.isnan(y_original)
+        mask_restored = np.isnan(y_original)
+
+        sum_known = y_original[mask_known].sum()
+        sum_restored = y_filled[mask_restored].sum()
+
+        if sum_restored == 0:
+            raise ValueError('Сумма восстановленных значений равна 0')
+
+        target_restored_sum = target_area - sum_known
+
+        factor = target_restored_sum / sum_restored
+
+        y_result = y_filled.copy()
+        y_result[mask_restored] *= factor
+
+        return y_result

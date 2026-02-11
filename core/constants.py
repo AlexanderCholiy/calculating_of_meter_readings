@@ -15,10 +15,9 @@ TRANSPOLATION_PROFILE_RESULT = os.getenv(
     'TRANSPOLATION_PROFILE_RESULT', 'True'
 ) == 'True'
 
-DEBUG_PROFILE_KEYS = [
-    val.strip() for val in os.getenv('DEBUG_PROFILE_KEYS', '').split(',')
-    if val.strip()
-]
+SCALE_RESTORED_ONLY = os.getenv(
+    'SCALE_RESTORED_ONLY', 'True'
+) == 'True'
 
 # Проверяем, запущен ли скрипт как exe:
 FILE_DIR = os.path.dirname(sys.executable) if IS_EXE else (

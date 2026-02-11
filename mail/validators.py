@@ -1,13 +1,15 @@
 import os
-
 from email import header, message
-from email.utils import parseaddr
 from email.header import decode_header
+from email.utils import parseaddr
 
-from .exceptions import ValidationError
 from .constants import (
-    ALLOWED_EXTENSIONS, ALLOWED_MIME_PREFIXES, MAX_ATTACHMENT_SIZE, EMAIL_DIR
+    ALLOWED_EXTENSIONS,
+    ALLOWED_MIME_PREFIXES,
+    EMAIL_DIR,
+    MAX_ATTACHMENT_SIZE
 )
+from .exceptions import ValidationError
 
 
 class EmailValidator:

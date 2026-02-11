@@ -1,11 +1,12 @@
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 import pandas as pd
 from pandas import DataFrame
 
-from .logger import app_logger, calc_logger
 from calc.exceptions import ExcelSaveError
+
+from .logger import calc_logger
 
 
 def format_seconds(seconds: float) -> str:
@@ -42,13 +43,10 @@ def clear_folder(folder_path: str | Path):
         return
 
     for item in folder.iterdir():
-        try:
-            if item.is_file() or item.is_symlink():
-                item.unlink()
-            elif item.is_dir():
-                shutil.rmtree(item)
-        except Exception as e:
-            app_logger.debug(f'Не удалось удалить {item}: {e}')
+        if item.is_file() or item.is_symlink():
+            item.unlink()
+        elif item.is_dir():
+            shutil.rmtree(item)
 
 
 def get_sorted_excel_files(
@@ -60,7 +58,7 @@ def get_sorted_excel_files(
     """
     files = [
         f for f in directory.iterdir()
-        if f.is_file() 
+        if f.is_file()
         and f.suffix.lower() in ('.xls', '.xlsx')
         and not f.name.startswith('~$')  # исключаем временные файлы Excel ~$
     ]
@@ -80,7 +78,7 @@ def write_to_excel(
 ):
     """
     Универсальный внутренний метод для записи листа в Excel.
-    Автоматически определяет: создать новый файл или обновить лист в 
+    Автоматически определяет: создать новый файл или обновить лист в
     существующем.
     """
     try:

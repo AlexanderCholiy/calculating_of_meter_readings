@@ -1,6 +1,6 @@
 from typing import Optional
-from .exceptions import ConfigEnvError
 
+from .exceptions import ConfigEnvError
 from .logger import app_logger
 
 

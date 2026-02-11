@@ -1,8 +1,7 @@
-from typing import Union, Any
 import email
-
-from imaplib import IMAP4
 from email import message
+from imaplib import IMAP4
+from typing import Any, Union
 
 from core.logger import email_logger
 

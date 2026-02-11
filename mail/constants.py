@@ -3,7 +3,6 @@ from pathlib import Path
 
 from core.constants import DATA_DIR
 
-
 MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024  # 50 MB
 
 ALLOWED_MIME_PREFIXES = {'application/vnd.ms-excel'}
