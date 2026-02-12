@@ -25,6 +25,7 @@ from .constants import (
 from .exceptions import EmptyPowerProfile, ExcelSaveError
 from .power_calc import MeterReadingsCalculator
 from .services.profile_algoritms import ProfileAlgoritm
+from .services.config import ConfigRestoreSignal
 
 
 class DebugProfile(TypedDict):
@@ -284,24 +285,26 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                     'масштабируем случайный эталонный профиль'
                 )
             },
-            'interpolate_inside': {
+            'periodic_internal_fill': {
                 'count': 0,
                 'condition': (
-                    'Заполнены не все точки, выполняем сплайн интерполяцию'
+                    'Пропуски внутри ряда. Выполняется восстановление '
+                    'периодической моделью с сохранением измеренных точек.'
                 )
             },
-            'stretch_edges': {
+            'periodic_edge_reconstruction': {
                 'count': 0,
                 'condition': (
-                    'Заполнены части точек, восстанавливаем данные методом '
-                    'растяжения известных значений'
+                    'Пропуски на границах ряда. Выполняется восстановление '
+                    'по среднесуточному профилю с масштабированием.'
                 )
             },
-            'mixed_fill': {
+            'periodic_hybrid_restore': {
                 'count': 0,
                 'condition': (
-                    'Смешанное восстановление пропусков методами '
-                    'interpolate_inside и stretch_edges'
+                    'Смешанный тип пропусков. Используется комбинированное '
+                    'периодическое восстановление '
+                    '(суточная модель + спектральное уточнение).'
                 )
             },
             'unknown_case': {
@@ -331,6 +334,8 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             3, int(len(x_dt) * self.MIN_KNOWN_POINTS_FRACTION)
         )
 
+        config_restore_signal = ConfigRestoreSignal(x_vars)
+
         for i, row in enumerate(calc_data.itertuples(index=False)):
             PrettyPrint.progress_bar_info(
                 i, total, 'Дорасчет профилей мощности:'
@@ -358,10 +363,10 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             total_power = pd.NA
             power_map_value: Optional[float] = power_map.get(power_key)
 
-            if not pd.isna(row.use_by_profile) and row.use_by_profile > 0:
-                total_power = row.use_by_profile
-            elif power_map_value and power_map_value > 0:
+            if power_map_value and power_map_value > 0:
                 total_power = power_map_value
+            elif not pd.isna(row.use_by_profile) and row.use_by_profile > 0:
+                total_power = row.use_by_profile
             elif not pd.isna(row.use_by_readings) and row.use_by_readings > 0:
                 total_power = row.use_by_readings
 
@@ -418,20 +423,22 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                     algoritm_name = 'full_empty'
                     meta[algoritm_name]['count'] += 1
                 elif has_inside_gap and not (has_left_gap or has_right_gap):
-                    y_vars = self.interpolate_inside_algoritm(
-                        x_vars, y_vars, total_power
+                    y_vars = self.restore_periodic_signal_algoritm(
+                        x_vars, y_vars, total_power, config_restore_signal
                     )
-                    algoritm_name = 'interpolate_inside'
+                    algoritm_name = 'periodic_internal_fill'
                     meta[algoritm_name]['count'] += 1
                 elif (has_left_gap or has_right_gap) and not has_inside_gap:
-                    y_vars = self.stretch_algoritm(y_vars, total_power)
-                    algoritm_name = 'stretch_edges'
+                    y_vars = self.restore_periodic_signal_algoritm(
+                        x_vars, y_vars, total_power, config_restore_signal
+                    )
+                    algoritm_name = 'periodic_edge_reconstruction'
                     meta[algoritm_name]['count'] += 1
                 else:
-                    y_vars = self.mixed_fill_algoritm(
-                        x_vars, y_vars, total_power
+                    y_vars = self.restore_periodic_signal_algoritm(
+                        x_vars, y_vars, total_power, config_restore_signal
                     )
-                    algoritm_name = 'mixed_fill'
+                    algoritm_name = 'periodic_hybrid_restore'
                     meta[algoritm_name]['count'] += 1
 
             else:
@@ -447,9 +454,9 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             # округление и нормализация значений дат
             if algoritm_name in (
                 'full_empty',
-                'interpolate_insid',
-                'stretch_edges',
-                'mixed_fill',
+                'periodic_internal_fill',
+                'periodic_edge_reconstruction',
+                'periodic_hybrid_restore',
             ):
                 round_y_vars = np.round(y_vars, 5)
             else:

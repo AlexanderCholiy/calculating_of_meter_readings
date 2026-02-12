@@ -80,7 +80,7 @@ class EmailParser(EmailParserManager, EmailValidator):
                 raise EmptyEmailSelect(search_query)
 
             for index, (msg, _) in enumerate(parsed_messages):
-                PrettyPrint.progress_bar_warning(
+                PrettyPrint.progress_bar_success(
                     index, total,
                     'Поиск письма с файлом для дорасчёта профилей мощности:'
                 )

@@ -4,6 +4,8 @@ from datetime import datetime
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 
+from .config import ConfigRestoreSignal
+
 
 class ProfileAlgoritm:
 
@@ -277,3 +279,142 @@ class ProfileAlgoritm:
         y_result[mask_restored] *= factor
 
         return y_result
+
+    def restore_periodic_signal_algoritm(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        total_power: float,
+        config: ConfigRestoreSignal,
+    ) -> np.ndarray:
+        y_interp = self.restore_periodic_signal(
+            x,
+            y,
+            period_seconds=config.period_seconds,
+            sampling_seconds=config.sampling_seconds,
+            large_gap_seconds=config.large_gap_seconds,
+            max_harmonics=config.max_harmonics,
+            iterations=config.iterations,
+        )
+
+        return self._finalize_processing(y, y_interp, total_power)
+
+    @staticmethod
+    def restore_periodic_signal(
+        x: np.ndarray,
+        y: np.ndarray,
+        period_seconds: int,
+        sampling_seconds: int,
+        large_gap_seconds: int,
+        max_harmonics: int = 3,  # суточная + 2 гармоники
+        iterations: int = 3,  # 1 слишком много ошибок, выше 7 нет смысла
+    ) -> np.ndarray:
+        """
+        Восстановление пропусков через периодическую спектральную модель.
+
+        x - секунды (равномерный шаг)
+        y - массив с float и nan
+        period_seconds - период (например 86400 сутки)
+        sampling_seconds - шаг дискретизации (например 3600 час)
+        large_gap_seconds - пределео при котором надо восстановить
+        среднесуточный профиль (например 2 дня - 172800)
+        """
+        nan_mask = np.isnan(y)
+
+        if not nan_mask.any():
+            return y
+
+        if nan_mask.all():
+            raise ValueError('Все значения NaN, восстановление не возможно.')
+
+        hours_per_period = period_seconds // sampling_seconds
+        large_gap_points = large_gap_seconds // sampling_seconds
+
+        # --- 1. Находим непрерывные блоки NaN ---
+        gaps = []
+        start = None
+        for i, is_nan in enumerate(nan_mask):
+            if is_nan and start is None:
+                start = i
+            if not is_nan and start is not None:
+                gaps.append((start, i))
+                start = None
+        if start is not None:
+            gaps.append((start, len(y)))
+
+        y_filled = y.copy()
+
+        # --- 2. Строим среднесуточный профиль ---
+        daily_profile = np.zeros(hours_per_period)
+        counts = np.zeros(hours_per_period)
+
+        for i in range(len(y)):
+            if not nan_mask[i]:
+                h = i % hours_per_period
+                daily_profile[h] += y[i]
+                counts[h] += 1
+
+        valid = counts > 0
+        daily_profile[valid] /= counts[valid]
+
+        # если нет данных по какому-то часу — fallback
+        daily_profile[~valid] = np.nanmean(y)
+
+        # --- 3. Обработка больших разрывов ---
+        for start, end in gaps:
+            gap_size = end - start
+
+            if gap_size >= large_gap_points:
+
+                # масштаб по предыдущему дню
+                left = max(0, start - hours_per_period)
+                right = start
+
+                scale = 1.0
+                if right > left:
+                    local_mean = np.nanmean(y_filled[left:right])
+                    base_mean = np.mean(daily_profile)
+                    if base_mean > 0:
+                        scale = local_mean / base_mean
+
+                for i in range(start, end):
+                    h = i % hours_per_period
+                    y_filled[i] = daily_profile[h] * scale
+
+                nan_mask[start:end] = False
+
+        # --- 4. Оставшиеся мелкие пропуски → Фурье ---
+        remaining_nan = np.isnan(y_filled)
+
+        if remaining_nan.any():
+
+            # первичная линейная интерполяция
+            y_filled[remaining_nan] = np.interp(
+                x[remaining_nan],
+                x[~remaining_nan],
+                y_filled[~remaining_nan],
+            )
+
+            n = len(y_filled)
+            freq = np.fft.fftfreq(n, d=sampling_seconds)
+            base_freq = 1.0 / period_seconds
+
+            for _ in range(iterations):
+
+                fft = np.fft.fft(y_filled)
+                mask = np.zeros_like(fft, dtype=bool)
+                mask[0] = True
+
+                for k in range(1, max_harmonics + 1):
+                    target = k * base_freq
+                    idx = np.argmin(np.abs(freq - target))
+                    idx_neg = np.argmin(np.abs(freq + target))
+                    mask[idx] = True
+                    mask[idx_neg] = True
+
+                fft_filtered = np.where(mask, fft, 0)
+                restored = np.fft.ifft(fft_filtered).real
+
+                y_filled[remaining_nan] = restored[remaining_nan]
+
+        return y_filled
