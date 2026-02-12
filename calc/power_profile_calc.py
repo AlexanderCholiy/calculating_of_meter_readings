@@ -87,7 +87,20 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
     def _get_debug_profiles_keys(self) -> set[str]:
         keys = []
-        df = pd.read_excel(OUTPUT_POWER_PROFILE_CALC_FILE, 'graph')
+        sheet_name = 'graph'
+
+        if not OUTPUT_POWER_PROFILE_CALC_FILE.exists():
+            return set()
+
+        try:
+            df = pd.read_excel(OUTPUT_POWER_PROFILE_CALC_FILE, sheet_name)
+        except ValueError:
+            calc_logger.warning(
+                f'Лист "{sheet_name}" отсутствует в файле '
+                f'"{OUTPUT_POWER_PROFILE_CALC_FILE.name}". '
+                'Возвращаем пустой набор ключей для проверки.'
+            )
+            return set()
 
         for row in df.itertuples(index=False):
             pole = row.pole
