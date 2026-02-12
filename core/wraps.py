@@ -66,7 +66,13 @@ def retry(
             while True:
                 try:
                     return func(*args, **kwargs)
-                except KeyboardInterrupt:
+                except (
+                    KeyboardInterrupt,
+                    SystemExit,
+                    GeneratorExit,
+                    MemoryError,
+                    RecursionError,
+                ):
                     raise
                 except exceptions as e:
                     attempt += 1
@@ -99,6 +105,14 @@ def timeout(seconds: int):
             def target():
                 try:
                     result.append(func(*args, **kwargs))
+                except (
+                    KeyboardInterrupt,
+                    SystemExit,
+                    GeneratorExit,
+                    MemoryError,
+                    RecursionError,
+                ):
+                    raise
                 except Exception as e:
                     exception.append(e)
 
@@ -126,7 +140,13 @@ def handle_exceptions(logger: Logger):
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except KeyboardInterrupt:
+            except (
+                KeyboardInterrupt,
+                SystemExit,
+                GeneratorExit,
+                MemoryError,
+                RecursionError,
+            ):
                 raise
             except Exception as e:
                 logger.exception(f'Критическая ошибка в {func.__name__}: {e}')

@@ -39,9 +39,15 @@ class EmailParserManager:
 
             try:
                 status, messages = mail.fetch(id_range, '(RFC822)')
-            except KeyboardInterrupt:
+            except (
+                KeyboardInterrupt,
+                SystemExit,
+                GeneratorExit,
+                MemoryError,
+                RecursionError,
+            ):
                 raise
-            except (IMAP4.abort, ConnectionResetError, OSError):
+            except (IMAP4.abort, ConnectionResetError):
                 continue
             except Exception as e:
                 email_logger.error(

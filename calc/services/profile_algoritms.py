@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 
-from .config import ConfigRestoreSignal
+from .profile_config import ConfigRestoreSignal
 
 
 class ProfileAlgoritm:
@@ -297,6 +297,10 @@ class ProfileAlgoritm:
             iterations=config.iterations,
         )
 
+        y_interp = self.add_noise_to_restored(
+            y_interp, y, config.noise_std_ratio, config.min_block_ratio
+        )
+
         return self._finalize_processing(y, y_interp, total_power)
 
     @staticmethod
@@ -418,3 +422,53 @@ class ProfileAlgoritm:
                 y_filled[remaining_nan] = restored[remaining_nan]
 
         return y_filled
+
+    @staticmethod
+    def add_noise_to_restored(
+        y_filled: np.ndarray,
+        original_y: np.ndarray,
+        noise_std_ratio: float,
+        min_block_ratio: float = 0,
+    ) -> np.ndarray:
+        """
+        Добавляет шум только к тем непрерывным восстановленным блокам,
+        длина которых превышает min_block_ratio от общего числа точек.
+
+        y_filled - сигнал после восстановления
+        original_y - исходный сигнал с NaN
+        noise_std_ratio - доля среднего значения для std шума
+        min_block_ratio - минимальный размер блока (в долях от общего числа
+        точек)
+        """
+        if noise_std_ratio <= 0:
+            return y_filled
+
+        restored_mask = np.isnan(original_y)
+        if not restored_mask.any():
+            return y_filled
+
+        total_points = len(y_filled)
+        min_block_size = int(total_points * min_block_ratio)
+
+        mean_value = np.nanmean(y_filled)
+        noise_std = mean_value * noise_std_ratio
+
+        result = y_filled.copy()
+
+        # === Поиск непрерывных блоков ===
+        indices = np.where(restored_mask)[0]
+
+        # разбиваем на группы последовательных индексов
+        blocks = np.split(
+            indices,
+            np.where(np.diff(indices) != 1)[0] + 1
+        )
+
+        for block in blocks:
+            block_size = len(block)
+
+            if block_size >= min_block_size:
+                noise = np.random.normal(0.0, noise_std, size=block_size)
+                result[block] += noise
+
+        return result

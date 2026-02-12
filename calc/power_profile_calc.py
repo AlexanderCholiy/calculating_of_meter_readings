@@ -25,7 +25,7 @@ from .constants import (
 from .exceptions import EmptyPowerProfile, ExcelSaveError
 from .power_calc import MeterReadingsCalculator
 from .services.profile_algoritms import ProfileAlgoritm
-from .services.config import ConfigRestoreSignal
+from .services.profile_config import ConfigRestoreSignal
 
 
 class DebugProfile(TypedDict):
@@ -69,7 +69,12 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                     )
                     return self._power_by_pole
 
-                except Exception as e:
+                except (
+                    PermissionError,
+                    json.JSONDecodeError,
+                    OSError,
+                    UnicodeDecodeError
+                ) as e:
                     calc_logger.warning(
                         f'Ошибка чтения кэша: {e}. '
                         'Запускаем расчет интегральных показаний.'
@@ -334,7 +339,11 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             3, int(len(x_dt) * self.MIN_KNOWN_POINTS_FRACTION)
         )
 
-        config_restore_signal = ConfigRestoreSignal(x_vars)
+        config_restore_signal = ConfigRestoreSignal(
+            x_vars,
+            noise_std_ratio=self.NOISE_STD_RATIO,
+            min_block_ratio=self.MIN_BLOCK_RATIO,
+        )
 
         for i, row in enumerate(calc_data.itertuples(index=False)):
             PrettyPrint.progress_bar_info(

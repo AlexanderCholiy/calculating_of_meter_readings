@@ -268,7 +268,12 @@ class MeterReadingsCalculator(
                     )
                     return self._poles_report
 
-                except Exception as e:
+                except (
+                    PermissionError,
+                    json.JSONDecodeError,
+                    OSError,
+                    UnicodeDecodeError
+                ) as e:
                     calc_logger.warning(f'Ошибка чтения кэша: {e}. Идем в БД.')
 
         with TSSessionLocal() as session:
@@ -282,7 +287,7 @@ class MeterReadingsCalculator(
             calc_logger.debug(
                 f'Отчет сохранен в кэш: {POLES_REPORT_CACHE_CACHE_FILE}'
             )
-        except Exception as e:
+        except (OSError, PermissionError, TypeError) as e:
             calc_logger.error(f'Не удалось сохранить кэш: {e}')
 
         return self._poles_report

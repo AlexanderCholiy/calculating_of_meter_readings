@@ -123,4 +123,13 @@ class PowerProfileFile:
     DATETIME_FORMAT_POWER_PROFILE = '%d.%m.%Y %H:%M'
 
     PROFILE_SUMPLES_NUMBERS = 100
-    MIN_KNOWN_POINTS_FRACTION = 0.1  # % от всех точек
+    MIN_KNOWN_POINTS_FRACTION = 0.1  # 10% от всех точек
+
+    # 0% нет шума
+    # 3–5% от среднего сигнала -> умеренные колебания
+    # 10% сильный шум
+    NOISE_STD_RATIO = 0.02
+    # 0 шум добавляется всегда
+    # 5–10% — сигнал сильно повторяется -> добавить шума, чтобы оживить график.
+    # 100% шум никогда не добавляется
+    MIN_BLOCK_RATIO = 0.05
