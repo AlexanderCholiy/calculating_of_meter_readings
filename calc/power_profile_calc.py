@@ -38,6 +38,7 @@ class DebugProfile(TypedDict):
 class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
     algoritm_column_name = 'Алгоритм'
+    power_algoritm_column_name = 'Потребление по профилю'
 
     _round_profile_key_digits: int = 2
 
@@ -200,6 +201,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
         df = df.copy()
 
         df['algoritm'] = None
+        df['power_algoritm'] = None
 
         return df
 
@@ -231,7 +233,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                 and use_by_readings > 0
                 and use_by_profile > 0
             ):
-                key = self._get_default_profile_key(use_by_readings)
+                key = self._get_default_profile_key(use_by_profile)
                 if key not in good_profiles:
                     good_profiles[key] = y_vars
                 if len(good_profiles) >= self.PROFILE_SUMPLES_NUMBERS:
@@ -335,9 +337,15 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                 'condition': 'Некорректные данные (нет опоры или ПУ)'
             },
             'total': total,
+            'power_algoritm': {
+                'original': 0,
+                'calc': 0,
+                'empty': 0,
+            }
         }
 
         algoritm_res = []
+        power_algoritm_res = []
         use_by_readings_res = []
         use_by_profile_res = []
         dif_res = []
@@ -364,6 +372,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             )
 
             algoritm_name = None
+            power_algoritm_name = None
 
             pole = row.pole.strip().split('.')[0] if row.pole else None
 
@@ -385,12 +394,17 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             total_power = pd.NA
             power_map_value: Optional[float] = power_map.get(power_key)
 
-            if power_map_value and power_map_value > 0:
-                total_power = power_map_value
-            elif not pd.isna(row.use_by_profile) and row.use_by_profile > 0:
+            if not pd.isna(row.use_by_profile) and row.use_by_profile > 0:
                 total_power = row.use_by_profile
-            elif not pd.isna(row.use_by_readings) and row.use_by_readings > 0:
-                total_power = row.use_by_readings
+                power_algoritm_name = 'original'
+                meta['power_algoritm'][power_algoritm_name] += 1
+            elif power_map_value and power_map_value > 0:
+                total_power = power_map_value
+                power_algoritm_name = 'calc'
+                meta['power_algoritm'][power_algoritm_name] += 1
+            else:
+                power_algoritm_name = 'empty'
+                meta['power_algoritm'][power_algoritm_name] += 1
 
             if pd.isna(pu_number) or not pole:
                 algoritm_name = 'unvalid_case'
@@ -420,7 +434,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                     and row.use_by_readings > 0
                     and row.use_by_profile > 0
                 ):
-                    key = self._get_default_profile_key(row.use_by_readings)
+                    key = self._get_default_profile_key(row.use_by_profile)
                     if key not in good_profiles:
                         good_profiles[key] = y_vars
                         good_profile_keys.append(key)
@@ -509,6 +523,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
 
             algoritm_res.append(algoritm_name)
             poles_res.append(pole)
+            power_algoritm_res.append(power_algoritm_name)
 
             if power_key in debug_profile_keys:
                 debug_profiles[power_key] = {
@@ -519,6 +534,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                 }
 
         calc_data['algoritm'] = algoritm_res
+        calc_data['power_algoritm'] = power_algoritm_res
         calc_data['use_by_readings'] = use_by_readings_res
         calc_data['use_by_profile'] = use_by_profile_res
         calc_data[self.DIF_COL_IN_POWER_PROFILE] = dif_res
@@ -548,18 +564,24 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
             'use_by_readings': self.USE_BY_METER_COL_IN_POWER_PROFILE,
             'use_by_profile': self.USE_BY_PROFILE_COL_IN_POWER_PROFILE,
             'algoritm': self.algoritm_column_name,
+            'power_algoritm': self.power_algoritm_column_name,
         })
 
         keep_columns = list(calc_data.columns)
 
         if DEBUG:
             keep_columns.remove(self.algoritm_column_name)
+            keep_columns.remove(self.power_algoritm_column_name)
 
             insert_pos = keep_columns.index(self.DIF_COL_IN_POWER_PROFILE) + 1
 
             keep_columns.insert(insert_pos, self.algoritm_column_name)
+            keep_columns.insert(
+                insert_pos + 1, self.power_algoritm_column_name
+            )
         else:
             keep_columns.remove(self.algoritm_column_name)
+            keep_columns.remove(self.power_algoritm_column_name)
 
         df_to_save = calc_data[keep_columns]
 
