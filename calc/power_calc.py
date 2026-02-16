@@ -128,6 +128,7 @@ class MeterReadingsCalculator(
             file_path=self.ARCHIVE_FILE,
             required_columns=self.REQUIRED_ARCHIVE_COLUMNS,
             int_columns=(self.CODE_EO_COL_IN_ARCHIVE,),
+            float_columns=(self.TRANSFORMATION_FACTOR_COL_IN_ARCHIVE,),
             str_columns=(self.POLE_COL_IN_ARCHIVE,),
             keep_columns=self.REQUIRED_ARCHIVE_COLUMNS,
         )
@@ -301,7 +302,8 @@ class MeterReadingsCalculator(
             - Шифр опоры
             - Номер ПУ
             - АСКУЭ
-            - Расход (разница между текущими и предыдущими показаниями)
+            - Расход (разница между текущими и предыдущими показаниями
+            деленная на коэффициент трансформации)
         """
         unique_archive = (
             self.archive
@@ -327,6 +329,7 @@ class MeterReadingsCalculator(
             self.POLE_COL_IN_ARCHIVE: 'pole',
             self.PREV_READ_COL_IN_INTEGRAL_READINGS: 'prev_readings',
             self.CURRENT_READ_COL_IN_INTEGRAL_READINGS: 'current_readings',
+            self.TRANSFORMATION_FACTOR_COL_IN_ARCHIVE: 'transformation_factor',
         })
 
         period_readings_with_pu_number, period_readings_without_pu_number = (
@@ -340,7 +343,7 @@ class MeterReadingsCalculator(
             'add_algoritm': 0,
             'extra_algoritm': 0,
             'unknown_case': 0,
-            'unvalid_case': 0,
+            'data_was_filed': 0,
             'total': total,
         }
 
@@ -356,11 +359,20 @@ class MeterReadingsCalculator(
             pole: Union[str, type(pd.NA)] = row.pole  # type: ignore
             prev_readings: float = row.prev_readings
             current_readings: Optional[float] = row.current_readings
+            transformation_factor: float = row.transformation_factor if (
+                not pd.isna(row.transformation_factor)
+                and row.transformation_factor > 0
+            ) else 1
 
             algoritm_name = 'unknown_case'
 
             if not pd.isna(current_readings):
-                algoritm_name = 'unvalid_case'
+                algoritm_name = 'data_was_filed'
+
+                calc_data.loc[idx, 'Расход'] = self.round_decimal(
+                    (current_readings - prev_readings) / transformation_factor
+                )
+
                 meta[algoritm_name] += 1
                 calc_data.loc[idx, self.algoritm_column_name] = algoritm_name
                 continue
@@ -406,7 +418,7 @@ class MeterReadingsCalculator(
                 ] = self.round_decimal(current_value)
 
                 calc_data.loc[idx, 'Расход'] = self.round_decimal(
-                    current_value - prev_readings
+                    (current_value - prev_readings) / transformation_factor
                 )
 
                 calc_data.loc[idx, self.algoritm_column_name] = algoritm_name

@@ -19,6 +19,14 @@ class PoleData(TypedDict):
     operator_group_count: int
 
 
+BAD_OPERATOR_STATUS: list[str] = [
+    status.strip()
+    for status in (
+        os.getenv('BAD_OPERATOR_STATUS', 'Dismantled, Terminated').split(',')
+    )
+    if status.strip()
+]
+
 RAISE_TS_POLE_TABLE_LIMIT = 50_000
 
 POLES_REPORT_CACHE_TTL = 3600

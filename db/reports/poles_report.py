@@ -5,6 +5,7 @@ from core.logger import db_logger
 from core.pretty_print import PrettyPrint
 from core.wraps import timer
 from db.constants import (
+    BAD_OPERATOR_STATUS,
     RAISE_TS_POLE_TABLE_LIMIT,
     PoleData,
 )
@@ -72,7 +73,8 @@ class PoleReport:
                 case(
                     (
                         (Operator.operator_group.isnot(None))
-                        & (Operator.operator_group != 'Other'),
+                        & (Operator.operator_group != 'Other')
+                        & (Operator.status.notin_(BAD_OPERATOR_STATUS)),
                         Operator.operator_group,
                     ),
                     else_=None,
@@ -85,6 +87,7 @@ class PoleReport:
                 Pole.id,
                 Pole.pole,
                 Pole.power_source_pole,
+                Pole.status,
                 is_master,
                 is_standalone,
                 operator_group_count,

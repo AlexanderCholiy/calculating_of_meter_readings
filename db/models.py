@@ -9,6 +9,7 @@ class Pole(TSBase):
     id = Column('Ключ строки', Integer, primary_key=True)
     pole = Column('Шифр', Text, nullable=False)
     power_source_pole = Column('Источник питания', Text, nullable=True)
+    status = Column('Статус опоры', Text)
 
 
 class Operator(TSBase):
@@ -19,3 +20,4 @@ class Operator(TSBase):
     base_station = Column('Имя БС/Оборудование', Text)
     operator = Column('Оператор', Text)
     operator_group = Column('Группа операторов', Text)
+    status = Column('Статус кита', Text)
