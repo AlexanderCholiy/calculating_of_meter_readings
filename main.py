@@ -30,32 +30,19 @@ def run_power_profile_calc():
 
 
 if __name__ == '__main__':
-    power_calc, power_profile_calc = arguments_parser()
+    if IS_EXE:
+        power_calc = input(
+            'Запустить дорасчёт интегральных показаний? (y/n) [y]: '
+        ).strip().lower() in ('y', 'yes', '')
+
+        power_profile_calc = input(
+            'Запустить дорасчёт профилей мощности? (y/n) [y]: '
+        ).strip().lower() in ('y', 'yes', '')
+    else:
+        power_calc, power_profile_calc = arguments_parser()
 
     if not any((power_calc, power_profile_calc)):
         sys.exit(1)
-
-    if IS_EXE and power_calc and not power_profile_calc:
-        update_data = input(
-            'Нажмите Enter, чтобы запустить дорасчёт интегральных показаний: '
-        ).strip().lower() if IS_EXE else ''
-        if update_data:
-            sys.exit(1)
-
-    elif IS_EXE and not power_calc and power_profile_calc:
-        update_data = input(
-            'Нажмите Enter, чтобы запустить дорасчёт профилей мощности: '
-        ).strip().lower() if IS_EXE else ''
-        if update_data:
-            sys.exit(1)
-
-    elif IS_EXE and power_calc and power_profile_calc:
-        update_data = input(
-            'Нажмите Enter, чтобы запустить дорасчёт интегральных показаний и '
-            'профилей мощности:'
-        ).strip().lower() if IS_EXE else ''
-        if update_data:
-            sys.exit(1)
 
     if power_calc:
         try:
