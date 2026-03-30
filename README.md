@@ -149,16 +149,3 @@ pyinstaller --onefile --icon=icon.ico \
 
 ## 👋 Автор
 **Чолий Александр** ([Telegram](https://t.me/alexander_choliy))
-
-
-usage: main.py [-h] [--power-calc [POWER_CALC]] [--power-profile-calc [POWER_PROFILE_CALC]]
-
-Дорасчёт интегральных показаний и профилей мощности.
-
-options:
-  -h, --help            show this help message and exit
-  --power-calc [POWER_CALC]
-                        Запустить расчет интегральных показаний
-  --power-profile-calc [POWER_PROFILE_CALC]
-                        Запустить расчет профилей мощности
-(venv) PS C:\Users\a.choliy\Documents\Work\projects\calculating_of_meter_readings> python .\main.py -h
