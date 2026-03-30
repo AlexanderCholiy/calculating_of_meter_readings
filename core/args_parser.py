@@ -26,7 +26,7 @@ def arguments_parser() -> tuple[bool]:
         type=str2bool,
         nargs='?',
         const=True,
-        default=True,
+        default=False,
         dest='power_calc',
         help='Запустить расчет интегральных показаний',
     )
@@ -35,7 +35,7 @@ def arguments_parser() -> tuple[bool]:
         type=str2bool,
         nargs='?',
         const=True,
-        default=True,
+        default=False,
         dest='power_profile_calc',
         help='Запустить расчет профилей мощности'
     )

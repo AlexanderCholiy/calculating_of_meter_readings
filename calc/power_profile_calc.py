@@ -336,6 +336,12 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                 'count': 0,
                 'condition': 'Некорректные данные (нет опоры или ПУ)'
             },
+            'not_processed': {
+                'count': 0,
+                'condition': (
+                    'Точка отсутствует в файле с интегральными показаниями'
+                )
+            },
             'total': total,
             'power_algoritm': {
                 'original': 0,
@@ -390,7 +396,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                 pole, pu_number
             )
 
-            # Приоритет у недавно посчитанного профиля:
+            # Дорасчет только по точкам из файла с интегральными показаниями.
             total_power = pd.NA
             power_map_value: Optional[float] = power_map.get(power_key)
 
@@ -406,7 +412,12 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
                 power_algoritm_name = 'empty'
                 meta['power_algoritm'][power_algoritm_name] += 1
 
-            if pd.isna(pu_number) or not pole:
+            if not power_map_value:
+                algoritm_name = 'not_processed'
+                meta[algoritm_name]['count'] += 1
+                total_power = pd.NA
+
+            elif pd.isna(pu_number) or not pole:
                 algoritm_name = 'unvalid_case'
                 meta[algoritm_name]['count'] += 1
                 total_power = pd.NA

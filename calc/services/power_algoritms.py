@@ -18,16 +18,31 @@ class Algoritm:
     _poles_networks: dict[str, set[str]] | None = None
 
     def base_algoritm(
-        self, period_reading_data: PeriodReadingData
+        self,
+        period_reading_data: PeriodReadingData,
+        pole: str,
+        poles_report: dict[str, PoleData],
     ) -> float | None:
         """
         Применяем данный алгоритм, если "Номер ПУ" и "Шифр опоры" такие же, как
-        в файле с Показаниями за период.
+        в файле с Показаниями за период. Если опора питается от другой опоры
+        сразу возвращаем 0.
         """
         start_date = period_reading_data['start_date']
         end_date = period_reading_data['end_date']
         last_read = period_reading_data['last_read']
         exp = period_reading_data['exp']
+
+        pole_data = poles_report.get(pole)
+
+        if pole_data is None:
+            raise ValueError(
+                f'Опоры {pole} не существует. Проверьте данные.'
+            )
+
+        power_source_pole = pole_data['power_source_pole']
+        if power_source_pole:
+            return last_read
 
         if any(
             v is None or pd.isna(v) for v in (start_date, end_date, last_read)
@@ -74,7 +89,11 @@ class Algoritm:
         )
 
     def add_algoritm(
-        self, period_reading_data: PeriodReadingData, prev_readings: float
+        self,
+        period_reading_data: PeriodReadingData,
+        prev_readings: float,
+        pole: str,
+        poles_report: dict[str, PoleData],
     ) -> float | None:
         """
         Применяем данный алгоритм, если "Номер ПУ" отсутствует, а "Шифр опоры"
@@ -83,6 +102,17 @@ class Algoritm:
         start_date = period_reading_data['start_date']
         end_date = period_reading_data['end_date']
         exp = period_reading_data['exp']
+
+        pole_data = poles_report.get(pole)
+
+        if pole_data is None:
+            raise ValueError(
+                f'Опоры {pole} не существует. Проверьте данные.'
+            )
+
+        power_source_pole = pole_data['power_source_pole']
+        if power_source_pole:
+            return prev_readings
 
         if any(
             v is None or pd.isna(v) for v in (start_date, end_date, exp)

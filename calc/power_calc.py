@@ -4,7 +4,6 @@ import time
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional, Union
 
-import numpy as np
 import pandas as pd
 
 from calc.constants import (
@@ -112,14 +111,12 @@ class MeterReadingsCalculator(
         return self.read_and_cast_excel_file(
             file_path=self.INTEGRAL_READINGS_FILE,
             required_columns=self.REQUIRED_INTEGRAL_READINGS_COLUMNS,
-            int_columns=(
-                self.CODE_EO_COL_IN_INTEGRAL_READINGS,
-                self.PU_NUMBER_COL_IN_INTEGRAL_READINGS,
-            ),
+            int_columns=(self.CODE_EO_COL_IN_INTEGRAL_READINGS,),
             float_columns=(
                 self.PREV_READ_COL_IN_INTEGRAL_READINGS,
                 self.CURRENT_READ_COL_IN_INTEGRAL_READINGS,
             ),
+            str_columns=(self.PU_NUMBER_COL_IN_INTEGRAL_READINGS,)
         )
 
     @property
@@ -138,10 +135,10 @@ class MeterReadingsCalculator(
         return self.read_and_cast_excel_file(
             file_path=self.PERIOD_READINGS_FILE,
             required_columns=self.REQUIRED_PERIOD_READINGS_COLUMNS,
-            int_columns=(self.PU_NUMBER_COL_IN_PERIOD_READINGS,),
             str_columns=(
                 self.POLE_COL_IN_PERIOD_READINGS,
                 self.TU_TYPE_COL_IN_PERIOD_READINGS,
+                self.PU_NUMBER_COL_IN_PERIOD_READINGS,
             ),
             float_columns=(
                 self.LAST_READ_COL_IN_PERIOD_READINGS,
@@ -168,7 +165,7 @@ class MeterReadingsCalculator(
     def get_period_readings_caches(
         self
     ) -> tuple[
-        dict[tuple[str, int], PeriodReadingData], dict[str, PeriodReadingData]
+        dict[tuple[str, str], PeriodReadingData], dict[str, PeriodReadingData]
     ]:
         """
         Кэш, для быстрого поиска значений из файла Показания за период.
@@ -195,7 +192,7 @@ class MeterReadingsCalculator(
 
         for row in period_readings.itertuples(index=False):
             pole: str = row.pole
-            pu_number: np.int64 = row.pu_number
+            pu_number: str = row.pu_number
 
             if not isinstance(pole, str):
                 bad_key_counter += 1
@@ -223,7 +220,7 @@ class MeterReadingsCalculator(
 
             # Важно сформировать два полных словаря:
             if not pd.isna(pu_number):
-                base_key = (pole, int(pu_number))
+                base_key = (pole, str(pu_number).strip())
                 result_with_pu_number[base_key] = value
 
             add_key = pole
@@ -355,7 +352,7 @@ class MeterReadingsCalculator(
                 idx, total, 'Дорасчет интегральных показаний:'
             )
 
-            pu_number: np.int64 = row.pu_number
+            pu_number: str = row.pu_number
             pole: Union[str, type(pd.NA)] = row.pole  # type: ignore
             prev_readings: float = row.prev_readings
             current_readings: Optional[float] = row.current_readings
@@ -390,14 +387,17 @@ class MeterReadingsCalculator(
 
             if period_reading_data_with_pu_number:
                 current_value = self.base_algoritm(
-                    period_reading_data_with_pu_number
+                    period_reading_data_with_pu_number, pole, self.poles_report
                 )
                 if current_value is not None:
                     algoritm_name = 'base_algoritm'
 
             if current_value is None and period_reading_data_without_pu_number:
                 current_value = self.add_algoritm(
-                    period_reading_data_without_pu_number, prev_readings
+                    period_reading_data_without_pu_number,
+                    prev_readings,
+                    pole,
+                    self.poles_report,
                 )
                 if current_value is not None:
                     algoritm_name = 'add_algoritm'

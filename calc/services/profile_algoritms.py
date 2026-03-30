@@ -269,7 +269,7 @@ class ProfileAlgoritm:
         sum_restored = y_filled[mask_restored].sum()
 
         if sum_restored == 0:
-            raise ValueError('Сумма восстановленных значений равна 0')
+            return np.zeros_like(y_filled)
 
         target_restored_sum = target_area - sum_known
 
