@@ -29,7 +29,7 @@ BAD_OPERATOR_STATUS: list[str] = [
 
 RAISE_TS_POLE_TABLE_LIMIT = 50_000
 
-POLES_REPORT_CACHE_TTL = 3600
+POLES_REPORT_CACHE_TTL = int(os.getenv('POLES_REPORT_CACHE_TTL', 3600))
 
 POLES_REPORT_CACHE_CACHE_FILE = Path(
     os.path.join(TMP_DIR, '__cache_poles_report.json')

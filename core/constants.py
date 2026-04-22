@@ -25,7 +25,7 @@ FILE_DIR = os.path.dirname(sys.executable) if IS_EXE else (
 )
 BASE_DIR = os.path.normpath(os.path.join(FILE_DIR, '..'))
 
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', 'y', 'yes', '1')
 
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)

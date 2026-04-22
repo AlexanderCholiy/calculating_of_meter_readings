@@ -2,7 +2,7 @@ import json
 import os
 import time
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Optional, Union
+from typing import Optional, TypedDict, Union
 
 import pandas as pd
 
@@ -30,6 +30,15 @@ from db.reports.poles_report import PoleReport
 
 from .exceptions import ExcelSaveError, MissingColumnsError
 from .services.power_algoritms import Algoritm
+
+
+class MeterReadingsMeta(TypedDict):
+    base_algoritm: int
+    add_algoritm: int
+    extra_algoritm: int
+    unknown_case: int
+    data_was_filed: int
+    total: int
 
 
 class MeterReadingsCalculator(
@@ -335,7 +344,7 @@ class MeterReadingsCalculator(
 
         total = len(calc_data)
 
-        meta = {
+        meta: MeterReadingsMeta = {
             'base_algoritm': 0,
             'add_algoritm': 0,
             'extra_algoritm': 0,
@@ -360,6 +369,30 @@ class MeterReadingsCalculator(
                 not pd.isna(row.transformation_factor)
                 and row.transformation_factor > 0
             ) else 1
+
+            # if pu_number not in (
+            #     '43389650',
+            #     '43389648',
+            #     '42874270',
+            #     '2210272710134',
+            #     '8200265344822',
+            #     '34777118',
+            #     '28548834',
+            #     '122380248',
+            #     '11601994',
+            #     '30842000',
+            #     '28411857',
+            #     '36916428',
+            #     '21747535',
+            #     '30158289',
+            #     '023240017737',
+            #     '43979632',
+            #     '8200265343930',
+            #     '31410959',
+            #     '45031021',
+            #     '0210274512378',
+            # ): # 111111111111111111111111111111111111111111111111111111111111111111111
+            #     continue
 
             algoritm_name = 'unknown_case'
 
@@ -400,6 +433,7 @@ class MeterReadingsCalculator(
                     self.poles_report,
                 )
                 if current_value is not None:
+
                     algoritm_name = 'add_algoritm'
 
             if current_value is None and not isinstance(pole, type(pd.NA)):

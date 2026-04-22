@@ -8,6 +8,7 @@ from calc.constants import (
     PeriodReadingData,
     PeriodReadingFile,
 )
+from calc.services.is_boundary_period import is_boundary_period
 from db.connection import TSSessionLocal
 from db.constants import PoleData
 from db.models import Pole
@@ -78,7 +79,7 @@ class Algoritm:
                 'Пожалуйста, проверьте корректность данных.'
             )
 
-        if start_date.day == 1 and end_date.day == 1:
+        if is_boundary_period(start_date, end_date):
             return last_read
 
         if exp is None or pd.isna(exp):
@@ -98,10 +99,27 @@ class Algoritm:
         """
         Применяем данный алгоритм, если "Номер ПУ" отсутствует, а "Шифр опоры"
         такой же, как в файле с Показаниями за период.
+        Только для типа счетчика: "Комерческий", "Контрольный"
         """
         start_date = period_reading_data['start_date']
         end_date = period_reading_data['end_date']
         exp = period_reading_data['exp']
+
+        tu_type = period_reading_data['tu_type']
+
+        if tu_type not in PeriodReadingFile.TU_TYPE_PRIORITY:
+            if tu_type in PeriodReadingFile.ADD_TU_TYPE:
+                return
+
+            valid_tu_types = sorted(
+                list(PeriodReadingFile.ADD_TU_TYPE)
+                + list(PeriodReadingFile.TU_TYPE_PRIORITY.keys())
+            )
+
+            raise ValueError(
+                f'Проверьте тип точки учета: {tu_type}. '
+                f'Возможные значения: {", ".join(valid_tu_types)}'
+            )
 
         pole_data = poles_report.get(pole)
 
@@ -148,7 +166,7 @@ class Algoritm:
                 'Пожалуйста, проверьте корректность данных.'
             )
 
-        if start_date.day == 1 and end_date.day == 1:
+        if is_boundary_period(start_date, end_date):
             return exp + prev_readings
 
         return (
