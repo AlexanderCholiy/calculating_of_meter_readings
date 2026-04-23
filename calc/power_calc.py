@@ -33,11 +33,11 @@ from .services.power_algoritms import Algoritm
 
 
 class MeterReadingsMeta(TypedDict):
+    data_was_filed: int
     base_algoritm: int
     add_algoritm: int
     extra_algoritm: int
     unknown_case: int
-    data_was_filed: int
     total: int
 
 
@@ -45,6 +45,9 @@ class MeterReadingsCalculator(
     IntegralReadingFile, ArchiveFile, PeriodReadingFile, Algoritm
 ):
     algoritm_column_name = 'Алгоритм'
+    exp_column_name = 'Расход'
+    operator_group_count_column_name = 'Кол-во групп операторов'
+    power_source_pole_column_name = 'Источник питания'
 
     def __init__(self):
         self._poles_report: dict[str, PoleData] | None = None
@@ -345,11 +348,11 @@ class MeterReadingsCalculator(
         total = len(calc_data)
 
         meta: MeterReadingsMeta = {
+            'data_was_filed': 0,
             'base_algoritm': 0,
             'add_algoritm': 0,
             'extra_algoritm': 0,
             'unknown_case': 0,
-            'data_was_filed': 0,
             'total': total,
         }
 
@@ -370,44 +373,16 @@ class MeterReadingsCalculator(
                 and row.transformation_factor > 0
             ) else 1
 
-            # if pu_number not in (
-            #     '43389650',
-            #     '43389648',
-            #     '42874270',
-            #     '2210272710134',
-            #     '8200265344822',
-            #     '34777118',
-            #     '28548834',
-            #     '122380248',
-            #     '11601994',
-            #     '30842000',
-            #     '28411857',
-            #     '36916428',
-            #     '21747535',
-            #     '30158289',
-            #     '023240017737',
-            #     '43979632',
-            #     '8200265343930',
-            #     '31410959',
-            #     '45031021',
-            #     '0210274512378',
-            # ): # 111111111111111111111111111111111111111111111111111111111111111111111
-            #     continue
-
             algoritm_name = 'unknown_case'
+            current_value = None
 
             if not pd.isna(current_readings):
                 algoritm_name = 'data_was_filed'
 
-                calc_data.loc[idx, 'Расход'] = self.round_decimal(
+                calc_data.loc[idx, self.exp_column_name] = self.round_decimal(
                     (current_readings - prev_readings) / transformation_factor
                 )
-
-                meta[algoritm_name] += 1
                 calc_data.loc[idx, self.algoritm_column_name] = algoritm_name
-                continue
-
-            current_value = None
 
             # Алгоритмы расчёта:
             period_reading_data_with_pu_number = (
@@ -418,14 +393,21 @@ class MeterReadingsCalculator(
                 period_readings_without_pu_number.get(pole, None)
             ) if isinstance(pole, str) else None
 
-            if period_reading_data_with_pu_number:
+            if (
+                algoritm_name != 'data_was_filed'
+                and period_reading_data_with_pu_number
+            ):
                 current_value = self.base_algoritm(
                     period_reading_data_with_pu_number, pole, self.poles_report
                 )
                 if current_value is not None:
                     algoritm_name = 'base_algoritm'
 
-            if current_value is None and period_reading_data_without_pu_number:
+            if (
+                algoritm_name != 'data_was_filed'
+                and current_value is None
+                and period_reading_data_without_pu_number
+            ):
                 current_value = self.add_algoritm(
                     period_reading_data_without_pu_number,
                     prev_readings,
@@ -433,10 +415,13 @@ class MeterReadingsCalculator(
                     self.poles_report,
                 )
                 if current_value is not None:
-
                     algoritm_name = 'add_algoritm'
 
-            if current_value is None and not isinstance(pole, type(pd.NA)):
+            if (
+                algoritm_name != 'data_was_filed'
+                and current_value is None
+                and not isinstance(pole, type(pd.NA))
+            ):
                 current_value = self.extra_algoritm(
                     pole, self.poles_report, prev_readings
                 )
@@ -446,16 +431,60 @@ class MeterReadingsCalculator(
             meta[algoritm_name] += 1
 
             # Дозаполняем текущие показания:
-            if current_value is not None:
+            if algoritm_name != 'data_was_filed' and current_value is not None:
                 new_integral_readings.loc[
                     idx, self.CURRENT_READ_COL_IN_INTEGRAL_READINGS
                 ] = self.round_decimal(current_value)
 
-                calc_data.loc[idx, 'Расход'] = self.round_decimal(
+                calc_exp = self.round_decimal(
                     (current_value - prev_readings) / transformation_factor
                 )
 
-                calc_data.loc[idx, self.algoritm_column_name] = algoritm_name
+                calc_data.loc[idx, self.exp_column_name] = calc_exp
+            elif algoritm_name != 'data_was_filed':
+                calc_data.loc[idx, self.exp_column_name] = None
+
+            calc_data.loc[idx, self.algoritm_column_name] = algoritm_name
+
+            # Дополнительные данные:
+            calc_data.loc[idx, self.TRANSFORMATION_FACTOR_COL_IN_ARCHIVE] = (
+                transformation_factor
+            )
+            calc_data.loc[idx, self.PREV_READ_COL_IN_INTEGRAL_READINGS] = (
+                prev_readings
+            )
+
+            pole_data = self.poles_report.get(pole)
+            if pole_data:
+                calc_data.loc[idx, self.operator_group_count_column_name] = (
+                    pole_data['operator_group_count']
+                )
+                calc_data.loc[idx, self.power_source_pole_column_name] = (
+                    pole_data['power_source_pole']
+                )
+            else:
+                calc_data.loc[idx, self.operator_group_count_column_name] = (
+                    None
+                )
+                calc_data.loc[idx, self.power_source_pole_column_name] = None
+
+            if period_reading_data_with_pu_number:
+                last_read = period_reading_data_with_pu_number['last_read']
+                calc_data.loc[idx, self.LAST_READ_COL_IN_PERIOD_READINGS] = (
+                    last_read
+                )
+            else:
+                calc_data.loc[idx, self.LAST_READ_COL_IN_PERIOD_READINGS] = (
+                    None
+                )
+
+            if period_reading_data_without_pu_number:
+                tu_type = period_reading_data_without_pu_number['tu_type']
+                calc_data.loc[idx, self.TU_TYPE_COL_IN_PERIOD_READINGS] = (
+                    tu_type
+                )
+            else:
+                calc_data.loc[idx, self.TU_TYPE_COL_IN_PERIOD_READINGS] = None
 
         if meta['unknown_case']:
             calc_logger.warning(
@@ -472,8 +501,8 @@ class MeterReadingsCalculator(
         )
 
         result_dict = (
-            calc_data.dropna(subset=['composite_id', 'Расход'])
-            .set_index('composite_id')['Расход']
+            calc_data.dropna(subset=['composite_id', self.exp_column_name])
+            .set_index('composite_id')[self.exp_column_name]
             .to_dict()
         )
 
@@ -513,14 +542,24 @@ class MeterReadingsCalculator(
             'pole',
             'pu_number',
             self.ASKUE_COL_IN_ARCHIVE,
-            'Расход',
+            self.exp_column_name,
         ]
 
         if self.EXTRA_COLUMNS:
             keep_columns.extend(self.EXTRA_COLUMNS)
 
         if DEBUG:
-            keep_columns.append(self.algoritm_column_name)
+            keep_columns.extend(
+                [
+                    self.LAST_READ_COL_IN_PERIOD_READINGS,
+                    self.PREV_READ_COL_IN_INTEGRAL_READINGS,
+                    self.TRANSFORMATION_FACTOR_COL_IN_ARCHIVE,
+                    self.TU_TYPE_COL_IN_PERIOD_READINGS,
+                    self.operator_group_count_column_name,
+                    self.power_source_pole_column_name,
+                    self.algoritm_column_name,
+                ]
+            )
 
         add_info = calc_data[
             [col for col in keep_columns if col in calc_data.columns]

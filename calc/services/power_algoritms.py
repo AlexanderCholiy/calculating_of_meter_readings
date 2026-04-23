@@ -42,8 +42,9 @@ class Algoritm:
             )
 
         power_source_pole = pole_data['power_source_pole']
+
         if power_source_pole:
-            return last_read
+            return last_read if not pd.isna(last_read) else None
 
         if any(
             v is None or pd.isna(v) for v in (start_date, end_date, last_read)

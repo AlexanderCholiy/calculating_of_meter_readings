@@ -43,7 +43,7 @@ class PoleReport:
         PrettyPrint.warning_print(
             ('Запрашиваем данные в TowerStore.', False),
             ('Операция может занять продолжительное время', False),
-            (f'({timeout_limit_msg}).', True),
+            (f'(примерно {timeout_limit_msg}).', True),
         )
 
         PoleAlias = aliased(Pole)
