@@ -201,13 +201,20 @@ class MeterReadingsCalculator(
         })
 
         bad_key_counter = 0
+        bad_tu_type_counter = 0
 
         for row in period_readings.itertuples(index=False):
             pole: str = row.pole
             pu_number: str = row.pu_number
+            tu_type: str = row.tu_type
 
-            if not isinstance(pole, str):
-                bad_key_counter += 1
+            if not not isinstance(pole, str) or not isinstance(tu_type, str):
+                if not isinstance(pole, str):
+                    bad_key_counter += 1
+
+                if not isinstance(tu_type, str):
+                    bad_tu_type_counter += 1
+
                 continue
 
             tu_type: str = row.tu_type.lower().strip()
@@ -247,6 +254,13 @@ class MeterReadingsCalculator(
                 f'В файле "{filename}" найдено {bad_key_counter} записей, '
                 'у которых отсутствует значение в столбце '
                 f'"{self.POLE_COL_IN_PERIOD_READINGS}".'
+            )
+        if bad_tu_type_counter:
+            filename = os.path.basename(self.PERIOD_READINGS_FILE)
+            calc_logger.warning(
+                f'В файле "{filename}" найдено {bad_tu_type_counter} записей, '
+                'у которых отсутствует значение в столбце '
+                f'"{self.TU_TYPE_COL_IN_PERIOD_READINGS}".'
             )
 
         return result_with_pu_number, result_without_pu_number
@@ -486,7 +500,7 @@ class MeterReadingsCalculator(
             else:
                 calc_data.loc[idx, self.TU_TYPE_COL_IN_PERIOD_READINGS] = None
 
-        if meta['unknown_case']:
+        if meta['unknown_case'] > 0:
             calc_logger.warning(
                 f'Найдено {meta['unknown_case']} / {total} записей, '
                 'которые не удалось обработать текущими алгоритмами.'

@@ -552,7 +552,7 @@ class PowerProfileCalc(PowerProfileFile, ProfileAlgoritm):
         calc_data[date_columns] = date_values_res
         calc_data['pole'] = poles_res
 
-        if meta['unknown_case']:
+        if meta['unknown_case'] and meta['unknown_case']['count'] > 0:
             calc_logger.warning(
                 f'Найдено {meta["unknown_case"]["count"]} / {total} записей, '
                 'которые не удалось обработать текущими алгоритмами.'

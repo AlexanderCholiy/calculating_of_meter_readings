@@ -42,6 +42,11 @@ if __name__ == '__main__':
         power_calc, power_profile_calc = arguments_parser()
 
     if not any((power_calc, power_profile_calc)):
+        app_logger.warning(
+            'Ни один расчёт не выбран. '
+            'Используйте флаг -h или --help, '
+            'чтобы посмотреть доступные аргументы запуска.'
+        )
         sys.exit(1)
 
     if power_calc:
