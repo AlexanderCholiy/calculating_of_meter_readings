@@ -4,7 +4,6 @@ import os
 import pandas as pd
 
 from calc.constants import (
-    AVG_EXP,
     PeriodReadingData,
     PeriodReadingFile,
 )
@@ -88,7 +87,8 @@ class Algoritm:
             return
 
         return (
-            (exp / delta_days) * (days_in_month - delta_days)
+            exp
+            * (1 + (days_in_month - delta_days) / delta_days)
             + last_read
         )
 
@@ -180,8 +180,8 @@ class Algoritm:
             return exp / _transformation_factor + prev_readings
 
         return (
-            (exp / delta_days) * (days_in_month - delta_days)
-            / _transformation_factor
+            exp / _transformation_factor
+            * (1 + (days_in_month - delta_days) / delta_days)
             + prev_readings
         )
 
@@ -190,6 +190,7 @@ class Algoritm:
         pole: str,
         poles_report: dict[str, PoleData],
         prev_readings: float,
+        avg_exp: float,
         transformation_factor: float = 1,
     ) -> float | None:
         """
@@ -210,7 +211,7 @@ class Algoritm:
 
         if is_standalone:
             return (
-                operator_group_count * AVG_EXP / transformation_factor
+                operator_group_count * avg_exp / transformation_factor
                 + prev_readings
             )
 
@@ -219,7 +220,7 @@ class Algoritm:
                 pole, poles_report
             )
             return (
-                all_operator_group_count * AVG_EXP / transformation_factor
+                all_operator_group_count * avg_exp / transformation_factor
                 + prev_readings
             )
 

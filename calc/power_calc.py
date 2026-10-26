@@ -7,6 +7,7 @@ from typing import Optional, TypedDict, Union
 import pandas as pd
 
 from calc.constants import (
+    AVG_EXP,
     OUTPUT_POWER_CALC_FILE,
     POWER_CALC_RESULT_FILE,
     ROUND_CALCULATION_DIGITS,
@@ -355,6 +356,7 @@ class MeterReadingsCalculator(
             self.PREV_READ_COL_IN_INTEGRAL_READINGS: 'prev_readings',
             self.CURRENT_READ_COL_IN_INTEGRAL_READINGS: 'current_readings',
             self.TRANSFORMATION_FACTOR_COL_IN_ARCHIVE: 'transformation_factor',
+            self.AVG_EXP_COL_IN_ARCHIVE: 'avg_exp',
         })
 
         period_readings_with_pu_number, period_readings_without_pu_number = (
@@ -388,6 +390,9 @@ class MeterReadingsCalculator(
                 not pd.isna(row.transformation_factor)
                 and row.transformation_factor > 0
             ) else 1
+            avg_exp: float = row.avg_exp if (
+                not pd.isna(row.avg_exp) and row.avg_exp > 0
+            ) else AVG_EXP
 
             algoritm_name = 'unknown_case'
             current_value = None
@@ -445,6 +450,7 @@ class MeterReadingsCalculator(
                     pole=pole,
                     poles_report=self.poles_report,
                     prev_readings=prev_readings,
+                    avg_exp=avg_exp,
                     transformation_factor=transformation_factor,
                 )
                 if current_value is not None:
