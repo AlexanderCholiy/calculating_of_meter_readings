@@ -25,3 +25,17 @@ class EmptyPowerProfile(ValueError):
     """Исключение: отсутствуют данные для расчета профиля мощности."""
     def __init__(self):
         super().__init__('Нет данных для расчета профиля мощности.')
+
+
+class NotMasterPole(ValueError):
+    """
+    Исключение, вызываемое когда опора отсутствует в БД
+    или не является мастер-опорой.
+    """
+    def __init__(self, pole: str):
+        self.pole = pole
+        message = (
+            f'Опоры {pole} не существует или не является мастер опорой. '
+            'Проверьте данные.'
+        )
+        super().__init__(message)

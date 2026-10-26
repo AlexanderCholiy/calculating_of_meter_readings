@@ -106,12 +106,16 @@ class PeriodReadingFile:
         EXP_COL_IN_PERIOD_READINGS,
     ]
 
+    CONTROL_TU_TYPES_PRIORITY: dict[str, int] = {
+        'контрольная': 1,
+        'контрольный': 1,
+    }
+
     TU_TYPE_PRIORITY: dict[str, int] = {
         # Чем больше, тем выше приоритет:
         'коммерческая': 2,
         'коммерческий': 2,
-        'контрольная': 1,
-        'контрольный': 1,
+        **CONTROL_TU_TYPES_PRIORITY,
     }
 
     ADD_TU_TYPE: set[str] = {

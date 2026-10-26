@@ -28,7 +28,7 @@ from db.constants import (
 )
 from db.reports.poles_report import PoleReport
 
-from .exceptions import ExcelSaveError, MissingColumnsError
+from .exceptions import ExcelSaveError, MissingColumnsError, NotMasterPole
 from .services.power_algoritms import Algoritm
 
 
@@ -208,7 +208,7 @@ class MeterReadingsCalculator(
             pu_number: str = row.pu_number
             tu_type: str = row.tu_type
 
-            if not not isinstance(pole, str) or not isinstance(tu_type, str):
+            if not isinstance(pole, str) or not isinstance(tu_type, str):
                 if not isinstance(pole, str):
                     bad_key_counter += 1
 
@@ -243,6 +243,7 @@ class MeterReadingsCalculator(
                 result_with_pu_number[base_key] = value
 
             add_key = pole
+
             if self._set_with_priority(
                 result_without_pu_number, add_key, value
             ):
@@ -341,6 +342,7 @@ class MeterReadingsCalculator(
             left_on=self.CODE_EO_COL_IN_INTEGRAL_READINGS,
             right_on=self.CODE_EO_COL_IN_ARCHIVE,
         )
+
         if (
             self.CODE_EO_COL_IN_INTEGRAL_READINGS
             != self.CODE_EO_COL_IN_ARCHIVE
@@ -394,7 +396,7 @@ class MeterReadingsCalculator(
                 algoritm_name = 'data_was_filed'
 
                 calc_data.loc[idx, self.exp_column_name] = self.round_decimal(
-                    (current_readings - prev_readings) / transformation_factor
+                    (current_readings - prev_readings) * transformation_factor
                 )
                 calc_data.loc[idx, self.algoritm_column_name] = algoritm_name
 
@@ -412,7 +414,9 @@ class MeterReadingsCalculator(
                 and period_reading_data_with_pu_number
             ):
                 current_value = self.base_algoritm(
-                    period_reading_data_with_pu_number, pole, self.poles_report
+                    period_reading_data=period_reading_data_with_pu_number,
+                    pole=pole,
+                    poles_report=self.poles_report,
                 )
                 if current_value is not None:
                     algoritm_name = 'base_algoritm'
@@ -423,10 +427,11 @@ class MeterReadingsCalculator(
                 and period_reading_data_without_pu_number
             ):
                 current_value = self.add_algoritm(
-                    period_reading_data_without_pu_number,
-                    prev_readings,
-                    pole,
-                    self.poles_report,
+                    period_reading_data=period_reading_data_without_pu_number,
+                    prev_readings=prev_readings,
+                    pole=pole,
+                    poles_report=self.poles_report,
+                    transformation_factor=transformation_factor,
                 )
                 if current_value is not None:
                     algoritm_name = 'add_algoritm'
@@ -437,7 +442,10 @@ class MeterReadingsCalculator(
                 and not isinstance(pole, type(pd.NA))
             ):
                 current_value = self.extra_algoritm(
-                    pole, self.poles_report, prev_readings
+                    pole=pole,
+                    poles_report=self.poles_report,
+                    prev_readings=prev_readings,
+                    transformation_factor=transformation_factor,
                 )
                 if current_value is not None:
                     algoritm_name = 'extra_algoritm'
@@ -451,7 +459,7 @@ class MeterReadingsCalculator(
                 ] = self.round_decimal(current_value)
 
                 calc_exp = self.round_decimal(
-                    (current_value - prev_readings) / transformation_factor
+                    (current_value - prev_readings) * transformation_factor
                 )
 
                 calc_data.loc[idx, self.exp_column_name] = calc_exp
@@ -469,9 +477,18 @@ class MeterReadingsCalculator(
             )
 
             pole_data = self.poles_report.get(pole)
+
             if pole_data:
+                total_operator_count = pole_data['operator_group_count']
+                try:
+                    total_operator_count = self.get_total_operator_count(
+                        pole, self.poles_report
+                    )
+                except NotMasterPole:
+                    pass
+
                 calc_data.loc[idx, self.operator_group_count_column_name] = (
-                    pole_data['operator_group_count']
+                    total_operator_count
                 )
                 calc_data.loc[idx, self.power_source_pole_column_name] = (
                     pole_data['power_source_pole']

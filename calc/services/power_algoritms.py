@@ -8,6 +8,7 @@ from calc.constants import (
     PeriodReadingData,
     PeriodReadingFile,
 )
+from calc.exceptions import NotMasterPole
 from calc.services.is_boundary_period import is_boundary_period
 from db.connection import TSSessionLocal
 from db.constants import PoleData
@@ -87,7 +88,8 @@ class Algoritm:
             return
 
         return (
-            (exp / delta_days) * (days_in_month - delta_days) + last_read
+            (exp / delta_days) * (days_in_month - delta_days)
+            + last_read
         )
 
     def add_algoritm(
@@ -96,6 +98,7 @@ class Algoritm:
         prev_readings: float,
         pole: str,
         poles_report: dict[str, PoleData],
+        transformation_factor: float = 1,
     ) -> float | None:
         """
         Применяем данный алгоритм, если "Номер ПУ" отсутствует, а "Шифр опоры"
@@ -167,11 +170,19 @@ class Algoritm:
                 'Пожалуйста, проверьте корректность данных.'
             )
 
+        _transformation_factor = (
+            transformation_factor
+            if tu_type in PeriodReadingFile.CONTROL_TU_TYPES_PRIORITY
+            else 1
+        )
+
         if is_boundary_period(start_date, end_date):
-            return exp + prev_readings
+            return exp / _transformation_factor + prev_readings
 
         return (
-            (exp / delta_days) * (days_in_month - delta_days) + prev_readings
+            (exp / delta_days) * (days_in_month - delta_days)
+            / _transformation_factor
+            + prev_readings
         )
 
     def extra_algoritm(
@@ -179,6 +190,7 @@ class Algoritm:
         pole: str,
         poles_report: dict[str, PoleData],
         prev_readings: float,
+        transformation_factor: float = 1,
     ) -> float | None:
         """
         Применяем данный алгоритм в последнем случае, как расчет по среднему.
@@ -197,21 +209,19 @@ class Algoritm:
             return prev_readings
 
         if is_standalone:
-            return operator_group_count * AVG_EXP + prev_readings
-
-        if is_master:
-            poles_net = self._get_poles_networks().get(pole)
-
-            if not poles_net:
-                raise ValueError(
-                    f'Опоры {pole} не существует. Проверьте данные.'
-                )
-
-            all_operator_group_count = sum(
-                poles_report[pl]['operator_group_count'] for pl in poles_net
+            return (
+                operator_group_count * AVG_EXP / transformation_factor
+                + prev_readings
             )
 
-            return all_operator_group_count * AVG_EXP + prev_readings
+        if is_master:
+            all_operator_group_count = self.get_total_operator_count(
+                pole, poles_report
+            )
+            return (
+                all_operator_group_count * AVG_EXP / transformation_factor
+                + prev_readings
+            )
 
     def _get_poles_networks(self) -> dict[str, set[str]]:
         """
@@ -242,3 +252,22 @@ class Algoritm:
         self._poles_networks = networks
 
         return networks
+
+    def get_total_operator_count(
+        self,
+        pole: str,
+        poles_report: dict[str, PoleData]
+    ) -> int:
+        """
+        Подсчитывает общее количество групп операторов с учетом, что
+        опора может быть источником питания для другой опоы и надо проверить
+        есть ли там еще доп. операторы.
+        """
+        poles_net = self._get_poles_networks().get(pole)
+
+        if not poles_net:
+            raise NotMasterPole(pole)
+
+        return sum(
+            poles_report[pl]['operator_group_count'] for pl in poles_net
+        )
