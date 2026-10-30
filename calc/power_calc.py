@@ -357,6 +357,7 @@ class MeterReadingsCalculator(
             self.CURRENT_READ_COL_IN_INTEGRAL_READINGS: 'current_readings',
             self.TRANSFORMATION_FACTOR_COL_IN_ARCHIVE: 'transformation_factor',
             self.AVG_EXP_COL_IN_ARCHIVE: 'avg_exp',
+            self.OPERATOR_GROUP_COUNT: 'operator_group_count',
         })
 
         period_readings_with_pu_number, period_readings_without_pu_number = (
@@ -393,6 +394,23 @@ class MeterReadingsCalculator(
             avg_exp: float = row.avg_exp if (
                 not pd.isna(row.avg_exp) and row.avg_exp > 0
             ) else AVG_EXP
+
+            default_operator_group_count: float = row.operator_group_count if (
+                not pd.isna(row.operator_group_count)
+                and row.operator_group_count > 0
+            ) else None
+
+            total_operator_count = default_operator_group_count
+            pole_data = self.poles_report.get(pole)
+
+            if default_operator_group_count is None and pole_data:
+                total_operator_count = pole_data['operator_group_count']
+                try:
+                    total_operator_count = self.get_total_operator_count(
+                        pole, self.poles_report
+                    )
+                except NotMasterPole:
+                    pass
 
             algoritm_name = 'unknown_case'
             current_value = None
@@ -451,6 +469,7 @@ class MeterReadingsCalculator(
                     poles_report=self.poles_report,
                     prev_readings=prev_readings,
                     avg_exp=avg_exp,
+                    default_operator_group_count=default_operator_group_count,
                     transformation_factor=transformation_factor,
                 )
                 if current_value is not None:
@@ -482,17 +501,7 @@ class MeterReadingsCalculator(
                 prev_readings
             )
 
-            pole_data = self.poles_report.get(pole)
-
             if pole_data:
-                total_operator_count = pole_data['operator_group_count']
-                try:
-                    total_operator_count = self.get_total_operator_count(
-                        pole, self.poles_report
-                    )
-                except NotMasterPole:
-                    pass
-
                 calc_data.loc[idx, self.operator_group_count_column_name] = (
                     total_operator_count
                 )

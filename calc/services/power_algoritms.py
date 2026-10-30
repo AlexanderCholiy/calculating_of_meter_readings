@@ -191,6 +191,7 @@ class Algoritm:
         poles_report: dict[str, PoleData],
         prev_readings: float,
         avg_exp: float,
+        default_operator_group_count: float | None,
         transformation_factor: float = 1,
     ) -> float | None:
         """
@@ -204,7 +205,11 @@ class Algoritm:
         power_source_pole = pole_data['power_source_pole']
         is_master = pole_data['is_master']
         is_standalone = pole_data['is_standalone']
-        operator_group_count = pole_data['operator_group_count']
+        operator_group_count = (
+            default_operator_group_count
+            if default_operator_group_count is not None
+            else pole_data['operator_group_count']
+        )
 
         if power_source_pole:
             return prev_readings

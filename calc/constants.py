@@ -69,6 +69,7 @@ class ArchiveFile:
     ASKUE_COL_IN_ARCHIVE = 'АСКУЭ'
     TRANSFORMATION_FACTOR_COL_IN_ARCHIVE = 'КТ'
     AVG_EXP_COL_IN_ARCHIVE = 'Среднее потребление'
+    OPERATOR_GROUP_COUNT = 'Кол-во групп операторов'
 
     REQUIRED_ARCHIVE_COLUMNS = [
         CODE_EO_COL_IN_ARCHIVE,
@@ -76,6 +77,7 @@ class ArchiveFile:
         ASKUE_COL_IN_ARCHIVE,
         TRANSFORMATION_FACTOR_COL_IN_ARCHIVE,
         AVG_EXP_COL_IN_ARCHIVE,
+        OPERATOR_GROUP_COUNT,
     ]
 
     EXTRA_COLUMNS = [
